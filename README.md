@@ -26,13 +26,11 @@ We provide a number of model checkpoints that we trained. Please find them on Hu
 |--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
 | **FoxBrain v1.0 13B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_LLama2_13B_8K_SFT_General_Domain_Knowledge</a>  | 
 | **FoxBrain v1.0 7B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_llama2_7B_8K_SFT_General_domain</a>  | 
-
 | **FoxBrain v1.0 13 B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_LLama2_13B_4K_SFT_General_Domain_Knowledge</a>  | 
 | **FoxBrain v1.0 7B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_llama2_7B_4K_SFT_General_domain</a>  | 
-
-
 | **FoxBrain v1.0 SFT 3B (Bloomz Based)** | 🤗 <a href="" target="_blank">Zh_Bloomz_3B_SFT </a>  | 
 | **FoxBrain v1.0 SFT 7B (Bloomz Based)** | 🤗 <a href="" target="_blank">Zh_Bloomz_7B_SFT </a>  | 
+
 ## Data
 
 Here are some quick links to the datasets that we used to train the models:
