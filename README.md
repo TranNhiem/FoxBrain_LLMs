@@ -40,7 +40,7 @@ Here are some quick links to the datasets that we used to train the models:
 | **Traditional Chinese 52K Alpaca**        | [Zh Alpaca 52k]() | Translated using GPT-3.5    |
 | **Traditional Chinese Lima 1K**           | [Zh Lima 1K]()  | Translated by GPT-4         |
 | **Zh_Dolly**             | [Traditional Chinese Dolly]()                                                                                  | Translated by GPT-4         |
-| **Traditional Chinese Instruction of How**             | [Zh Instruction How Step by Step]()                                                                                  | Extracted from Vietnamese WikiHow       |
+
 
 
 # Demo: 
