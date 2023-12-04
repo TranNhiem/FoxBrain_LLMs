@@ -77,7 +77,7 @@ Hello and welcome to the FoxBrain project! This project aims to create Tradition
 
 Below is the project structure, outlining key sections and their primary functions:
 
-### 1. benchmark
+### 1. Benchmark
 
 ### 2. Finetune LLM Model
 
