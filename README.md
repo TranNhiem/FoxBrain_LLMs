@@ -134,7 +134,7 @@ Remember that these steps represent a general process and can be adjusted and su
 ```
 @misc{vietnameseLLM,
     author={HHRAI},
-    title={FoxBrain Instruction Data Corpus for Large-Scale Finetuning of Language Models},
+    title={FoxBrain Large-Scale Finetuning of Language Models on Traditional Chinese},
     year={2023},
     url={https://github.com/TranNhiem/FoxBrain_LLMs},
 }
