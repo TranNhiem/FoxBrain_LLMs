@@ -132,7 +132,7 @@ Remember that these steps represent a general process and can be adjusted and su
 + Would you like to contribute to the project? Please refer to the Contribute_guideline for instructions on how to get started and collaborate on this project together.
 
 ```
-@misc{vietnameseLLM,
+@misc{FoxBrainLLM,
     author={HHRAI},
     title={FoxBrain Large-Scale Finetuning of Language Models on Traditional Chinese},
     year={2023},
