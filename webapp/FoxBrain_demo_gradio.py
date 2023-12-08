@@ -206,7 +206,7 @@ title = "FoxBrain Assistant"
 
 with gr.Blocks() as demo:
     #gr.Markdown("""<h1><center> SIF-LLM Assistant (Alpha Released)  </center></h1>""")
-    gr.HTML(read_content("/data1/LLM_Checkpoints/html_header.html"))
+    gr.HTML(read_content("./html_header.html"))
 
     chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=500)
     
