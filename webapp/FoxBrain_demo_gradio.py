@@ -11,7 +11,6 @@ pip install sentencepiece==0.1.99
 
 '''
 
-
 import os
 import sys
 import json 
@@ -91,7 +90,7 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         truncated_conversation = []
 
         for pair in chatbot:
-            if remaining_words + len(' '.join(pair)) <= 1000:
+            if remaining_words + len(' '.join(pair)) <= 500:
                 truncated_conversation.append(pair)
                 remaining_words += len(' '.join(pair).split())
             else:
