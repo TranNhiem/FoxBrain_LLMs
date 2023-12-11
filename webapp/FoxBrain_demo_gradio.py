@@ -21,7 +21,7 @@ import sentencepiece as spm
 from datetime import datetime
 import gradio as gr
 
-model_dir="/data1/LLM_Checkpoints/Foxbrain_Beta_SFT"
+model_dir="/data/rick/pretrained_weights/ctranslate/FoxBrain_Beta_SFT"
 print("Loading the model...")
 generator = ctranslate2.Generator(model_dir, device="cuda") # device_index=[0, 1, 2, 3]
 sp = spm.SentencePieceProcessor(os.path.join(model_dir, "tokenizer.model"))
@@ -75,8 +75,6 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
     print("session_id", session_id)
     if session_id =="": 
         session_id = datetime.now().strftime("%Y%m%d%H")
-
-        
 
     ##  Check the History Conversation
     if len(chatbot) >= 15:
@@ -201,7 +199,6 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
 
 css = """.toast-wrap { display: none !important } """
 title = "FoxBrain Assistant"
-
 
 with gr.Blocks() as demo:
     #gr.Markdown("""<h1><center> SIF-LLM Assistant (Alpha Released)  </center></h1>""")
