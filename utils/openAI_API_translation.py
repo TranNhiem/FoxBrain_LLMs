@@ -32,7 +32,7 @@ API_BASE = "https://sslgroupservice.openai.azure.com/"
 API_VERSION = "2023-03-15-preview" #"2022-06-01-preview"#"2023-03-15-preview"
 API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL = "gpt-35-turbo"#"gpt-3.5-turbo" #"gpt-35-turbo" for Azure API, OpenAI API "gpt-3.5-turbo"#"gpt-4", "text-davinci-003"
-TARGET_LANGUAGE = "Traditional Chinese" #"Vietnamese language"
+TARGET_LANGUAGE = "Traditional Chinese" #
 CHUNK_SIZE = 5
 OUTPUT_DIR = "./data/output/"
 
@@ -270,7 +270,7 @@ def translate_subset_df(subset_df, checkpoint_interval, start, end):
                 if num_successful_translations > 0:
                     translated_subset_df = pd.DataFrame(translated_subset_rows, columns=['instruction', 'input', 'output'])
                     checkpoint_index = index + 1
-                    save_translated_subset_to_json(translated_subset_df, f'./Vietnamese_Translation_Azure_GPT_35_{start}_{end}_checkpoint_{checkpoint_index}.json')
+                    save_translated_subset_to_json(translated_subset_df, f'./Traditional_Chinese_Translation_Azure_GPT_35_{start}_{end}_checkpoint_{checkpoint_index}.json')
                     translated_subset_rows = []
                     num_successful_translations = 0
 
