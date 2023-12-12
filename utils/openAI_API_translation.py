@@ -37,6 +37,84 @@ CHUNK_SIZE = 5
 OUTPUT_DIR = "./data/output/"
 
 
+
+##----------- Start PREPROCESSING TEXT ------------------------
+
+def remove_urls(text):
+    url_pattern = re.compile(r'https?://\S+|www\.\S+')
+    return url_pattern.sub(r'', text)
+
+def remove_html_tags(text):
+    html_pattern = re.compile(r'<.*?>')
+    return html_pattern.sub(r'', text)
+
+def remove_special_characters(text, keep_chars="'.,!?"):
+    pattern = re.compile(f'[^A-Za-z0-9{keep_chars}\s]')
+    return pattern.sub(r'', text)
+
+def matches_regex(regex, text):
+    return bool(re.compile(regex).search(text))
+
+def contains_code(text):
+    code_blacklist = ['&&', '||', '<html>', ';\n', 'SELECT']
+    return (
+        any(code_keyword in text for code_keyword in code_blacklist) or
+        matches_regex(r'\w+\(\w*\) \{', text) or
+        matches_regex(r'def \w+\(', text) or
+        matches_regex(r'\[A-z]+\.[A-z]+', text) or
+        matches_regex(r': [\w\.#]{1,12};', text) or
+        matches_regex(r'<\/\w+>', text)
+    )
+
+def preprocess_text(text, remove_digits=False, to_lowercase=False, remove_stopwords=False, stemming=False, lemmatization=False, keep_chars="'.,!?", remove_code=False):
+    
+    def remove_punctuation(text):
+        return ''.join(c if c not in string.punctuation or c == '-' else ' ' for c in text)
+  
+    # Remove URLs
+    text = remove_urls(text)
+
+    # Remove HTML tags
+    text = remove_html_tags(text)
+
+    # Remove special characters
+    text = remove_special_characters(text, keep_chars=keep_chars)
+
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Remove code content
+    if remove_code:
+        text = re.sub(r'(?s)(?P<tag><code>.*?</code>)', '', text)
+
+    if remove_digits:
+        text = re.sub(r'\d+', '', text)
+
+    if to_lowercase:
+        text = text.lower()
+    # Call the remove_punctuation function
+    text = remove_punctuation(text)
+   
+    
+    if remove_stopwords or stemming or lemmatization:
+        tokens = word_tokenize(text)
+        if remove_stopwords:
+            #stop_words = set(stopwords.words('english'))
+            stop_words = set(stopwords.words('english')).union(set(stopwords.words('english')))
+            text = " ".join([word for word in text.split() if word not in stop_words])
+        if stemming:
+            stemmer = PorterStemmer()
+            tokens = [stemmer.stem(token) for token in tokens]
+
+        if lemmatization:
+            lemmatizer = WordNetLemmatizer()
+            tokens = [lemmatizer.lemmatize(token) for token in tokens]
+
+        text = ' '.join(tokens)
+
+    return text
+
+
 # Set up API
 def setup_api(api="azure"):
     if api == "azure":
