@@ -8,6 +8,7 @@ from itertools import chain
 from multiprocessing.pool import ThreadPool
 from typing import List
 
+import requests
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 from urllib3.util import Retry
