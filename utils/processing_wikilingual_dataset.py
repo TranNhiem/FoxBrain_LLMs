@@ -5,7 +5,6 @@ Processing Wikilingual Dataset to short Pair Between English and Chinese Documen
 
 '''
 
-
 import pickle
 import os
 import json
@@ -40,8 +39,6 @@ j=0
 for idx, doc in enumerate(cn_data): 
     
     cn_doc=doc[1]  # Replace with the CN document you want to find the English match for
-
- 
     cn_section = list(cn_doc)
     print(cn_section)
     content_data = cn_doc[str(cn_section[0])]
