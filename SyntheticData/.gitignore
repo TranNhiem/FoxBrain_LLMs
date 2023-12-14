@@ -1,4 +1,4 @@
 *.json
 *.ipynb
-data/*.json
+data/
 __pycache__/

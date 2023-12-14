@@ -4,6 +4,8 @@
 This is for text preprocessing.
 1. chunk text to max length, it helps us adhere to the maximum length limit of GPT without losing any text.
 '''
+import json
+
 import nltk
 import tiktoken
 
@@ -49,3 +51,13 @@ def chunk_text_to_max_tokens(text, max_tokens=512):
         chunks = [text]
 
     return chunks
+
+def merge_jsonl_to_json(jsonl_paths, save_path):
+    datas = []
+    for jsonl_path in jsonl_paths:
+        with open(jsonl_path, "r") as r:
+            data = json.load(r)
+            datas.append(data)
+            
+    with open(save_path, "w") as w:
+        json.dump(datas, w, indent=4, ensure_ascii=False)

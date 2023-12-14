@@ -3,14 +3,21 @@
 This code is designed for translating dataset documents. It utilizes the litellm proxy to invoke GPT for translation.
 '''
 import asyncio
+from glob import glob
 import json
+import os
 
+import aiofiles
 import fire
 from llm_proxy import get_router
 from tqdm import tqdm
+from tqdm.asyncio import tqdm_asyncio
+
+from utils import merge_jsonl_to_json
 
 
 router = None
+tmp_path = "data/tmp"
 
 
 def generate_prompt(to_translated, target_language):
@@ -26,10 +33,9 @@ def generate_prompt(to_translated, target_language):
     ]
     
 
-async def translation_worker(data, target_language):
+async def translation_worker(data, target_language, idx):
     translated_data = {}
     for key, sents in data.items():
-
         # we don't need to translate the filename.
         if key == "file":
             translated_data[key] = sents[0]
@@ -52,8 +58,10 @@ async def translation_worker(data, target_language):
             
         translated_data[key] = " ".join(translated_texts)
         
-    return translated_data
-
+    async with aiofiles.open(os.path.join(tmp_path, f"{idx}.jsonl"), "w") as writer:
+        await writer.write(json.dumps(translated_data, ensure_ascii=False))
+        
+    return
 
 async def run(
     data_path,
@@ -74,15 +82,27 @@ async def run(
     router = get_router(proxy_config_path)
 
     # declare all works
-    tasks = [translation_worker(data, target_language=target_language) for data in datas]
-    tqdm_tasks = tqdm(asyncio.as_completed(tasks), total=len(tasks), desc="Translating...")
+    tasks = [
+        translation_worker(
+            data, 
+            target_language=target_language, 
+            idx=idx
+        ) for idx, data in enumerate(datas)
+    ]
     
-    # do works
-    results = await asyncio.gather(*tqdm_tasks)
+    # start work
+    ## create the tmp folder
+    if not os.path.isdir(tmp_path):
+        os.makedirs(tmp_path)
+
+    ## translate
+    await tqdm_asyncio.gather(*tasks, desc="Translating...")
 
     # save results
-    with open(save_path, "w") as w:
-        json.dump(results, w, indent=4, ensure_ascii=False)
+    merge_jsonl_to_json(
+        jsonl_paths=glob(os.path.join(tmp_path, "*.jsonl")), 
+        save_path=save_path
+    )
 
 
 def main(
