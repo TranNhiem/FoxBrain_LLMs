@@ -14,9 +14,9 @@ from tqdm import tqdm
 from urllib3.util import Retry
 
 
-class ZHConvert(object):
+class ZhTWConvert(object):
 
-    def __init__(self, style="Taiwan", retry_times=3):
+    def __init__(self, style="Taiwan", retry_times=5):
         self.api_endpoint = "https://api.zhconvert.org/convert"
         self.style = style
 

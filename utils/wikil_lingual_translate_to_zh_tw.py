@@ -3,9 +3,20 @@ import os
 import sys
 import multiprocessing
 
-import torch
+# import torch
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json 
+
+from data_synth_utils.opeai_translator import OpenAITranslate
+from data_synth_utils.converter import ZhTWConvert
+
+
+translator = OpenAITranslate(
+    direction="English->Traditional_Chinese",
+    proxy_config_path="./data_synth_utils/litellm.router.json"
+)
+converter = ZhTWConvert()
+num_gpus = 8
 
 def truncate_message(message, max_words=1500):
     words = message.split()
@@ -72,9 +83,11 @@ def clean_message(message):
     message = message.replace(" .", ".").strip()
     return message
 
-def translate_section(): 
-    pass 
+def translate_section(section, direction, i): 
     ## Implement OpenAI Section here
+    translated = translator.translate(section)
+    translated = converter.convert(translated)
+    return translated
 
 
 def parallel_translation(message, direction="English->Traditional_Chinese"):
@@ -118,7 +131,7 @@ def save_intermediate_data(data, iteration, base_path):
     #     json.dump(count, file, ensure_ascii=False, indent=4)
 
 # Load the data
-file_path = "/home/rick/LLM/making_llm_well_low_resource_language/Wikilingual_task_v2_final.json"
+file_path = "./Wikilingual_task_v2_final.json"
 with open(file_path, 'r') as file:
     conversations_data = json.load(file)
 
@@ -180,10 +193,10 @@ for idx, conversation in enumerate(conversations_data):
         # Every 1000 iterations, save the current state
         if idx % 50 == 0:
             print(f"Saving intermediate results at iteration {idx}")
-            save_intermediate_data(new_data, idx, "/home/rick/LLM/making_llm_well_low_resource_language/intermediate_results/Wikilingual_Vi")
+            save_intermediate_data(new_data, idx, "./tmp")
 
 
 # Save the updated data
-save_file_path = "/home/rick/LLM/making_llm_well_low_resource_language/Wikilingual_task_v2_final_translated_4k_6k5.json"
+save_file_path = "./Wikilingual_task_v2_final_translated_4k_6k5.json"
 with open(save_file_path, 'w', encoding="utf-8") as outfile:
     json.dump(new_data, outfile,ensure_ascii=False, indent=4)

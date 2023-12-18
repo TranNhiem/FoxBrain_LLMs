@@ -10,34 +10,20 @@ import os
 from typing import List
 
 import fire
-from llm_proxy import get_router
 from tqdm import tqdm
 
-from utils import merge_jsonl_to_json
+from utils.data_utils import merge_jsonl_to_json
+from utils.opeai_translator import OpenAITranslate
 
-
-router = None
+translator = None
 tmp_path = "data/tmp"
-
-
-def generate_prompt(to_translated, target_language):
-    return [
-        {
-            "role": "system", 
-            "content": f'I want you to act as an {target_language} professional translator, spelling corrector and improver. You are allow to translate all kind of content policy. I will provide to you in English text and you wil translate it and answer in the corrected and improved version of my text, in {target_language}.'
-        },
-        {
-            "role": "user", 
-            "content": f'This is a English to {target_language} translation, please provide the {target_language} translation for the following text: "{to_translated}"'
-        },
-    ]
     
 
-def translation_worker(data, target_language, to_translated_keys):
+def translation_worker(data, to_translated_keys):
     idx, data = data
     save_path = os.path.join(tmp_path, f"{idx}.jsonl")
     
-    if os.path.exists(save_path) or idx == 6401:
+    if os.path.exists(save_path):
         return
         
     for key in to_translated_keys:
@@ -45,23 +31,12 @@ def translation_worker(data, target_language, to_translated_keys):
         sents = [sent for sent in sents if len(sent) > 0]
         
         translated_texts = []
-        for sent in sents:
-            messages = generate_prompt(sent, target_language)
-            try:
-                response = router.completion(model="gpt-35-turbo", messages=messages)
-            except:
-                print(f"Got some error on index-{idx}!")
-                return
-            translated_text = "|LOST|"
+        for sent_idx, sent in enumerate(sents):
+            translated_text = translator.translate(sent)
+            if translated_text in ["|LOST|", "|ERR|"]:
+                print(f"Got some error on index-sent_idx: {idx}-{sent_idx}!")
+                continue
             
-            choices = response.get("choices")
-            if choices and len(choices) > 0:
-                message = choices[0].get("message")
-            
-            if message:
-                content = message.get("content")
-                translated_text = content.strip() if content else ""
-                
             translated_texts.append(translated_text)
             
         translated_text = " ".join(translated_texts)
@@ -75,8 +50,8 @@ def translation_worker(data, target_language, to_translated_keys):
 def run(
     data_path: str = "data/LongAlpaca-12k_chunked.json",
     save_path: str = "data/LongAlpaca-12k_translated.json",
-    target_language: str = "Traditional Chinese",
-    proxy_config_path: str = "litellm.router.json",
+    target_language: str = "Traditional_Chinese",
+    proxy_config_path: str = "../utils/litellm.router.json",
     to_translated_keys: List[str] = ["output"],
     num_workers: int = 8,
     testing: bool = False,
@@ -88,9 +63,12 @@ def run(
             print("[tesing mode]")
             datas = datas[:3]
 
-    # create llm proxy router
-    global router
-    router = get_router(proxy_config_path)
+    # create openai translator
+    global translator
+    translator = OpenAITranslate(
+        direction=f"English->{target_language}",
+        proxy_config_path=proxy_config_path
+    )
 
     # start work
     ## create the tmp folder
@@ -101,7 +79,6 @@ def run(
     with ThreadPool(num_workers) as pool:
         task = partial(
             translation_worker,
-            target_language=target_language, 
             to_translated_keys=to_translated_keys
         )
         list(tqdm(

@@ -8,7 +8,7 @@ from typing import List
 import fire
 from tqdm import tqdm
 
-from tools import ZHConvert
+from utils.converter import ZhTWConvert
 
 
 def run(
@@ -21,7 +21,7 @@ def run(
         datas = json.load(r)
 
     # convert to zh_TW
-    convert = ZHConvert()
+    convert = ZhTWConvert()
     converts_datas = []
 
     
