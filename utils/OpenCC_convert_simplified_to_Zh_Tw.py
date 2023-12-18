@@ -4,19 +4,25 @@
 This design implementation of OpenCC: convert each sentence of Simplified Chinese to ZH_TW Chinese
  
 '''
+from concurrent.futures import ThreadPoolExecutor
+import json
 
 import opencc
-import json
-from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
+
+
+# convert the converter into a global variable to achieve a remarkable 600x speedup.
+converter = opencc.OpenCC('s2t.json')
+
 
 # Function to convert text from simplified to traditional Chinese
 def convert_simplified_to_traditional(text):
-    converter = opencc.OpenCC('s2t.json')
     return converter.convert(text)
 
 
-file_path= "/data/rick/Instruction_finetune_dataset/cn_Instruct_dataset/firefly_instruct/firefly_1M1format.json"
+file_path = "/data/rick/Instruction_finetune_dataset/cn_Instruct_dataset/firefly_instruct/firefly_1M1format.json"
+
+
 ## Dealing with Convert 
 def load_input_data(INPUT_TASKS_PATH):
     with open(INPUT_TASKS_PATH, 'r') as json_file:
