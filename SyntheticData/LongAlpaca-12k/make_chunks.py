@@ -6,6 +6,7 @@ This code implements for prechunking the LongAlpaca-12k data.
 import json
 from functools import partial
 from multiprocessing.pool import Pool
+from typing import List
 
 import fire
 from tqdm import tqdm
@@ -13,17 +14,17 @@ from tqdm import tqdm
 from utils import chunk_text_to_max_tokens
 
 
-def parallel_worker(data, max_tokens=512):
-    new_data = {}
-    for key, text in data.items():
-        chunks = chunk_text_to_max_tokens(text, max_tokens)
-        new_data[key] = chunks
-    return new_data
+def parallel_worker(data, to_chunk_keys, max_tokens=512):
+    for key in to_chunk_keys:
+        chunks = chunk_text_to_max_tokens(data[key], max_tokens)
+        data[key] = chunks
+    return data
 
 
 def run(
     data_path: str = "data/LongAlpaca-12k.json",
     save_path: str = "data/LongAlpaca-12k_chunked.json",
+    to_chunk_keys: List[str] = ["output"],
     max_tokens: int = 512,
     num_worker: int = 8
 ):
@@ -33,7 +34,11 @@ def run(
 
     # chunking data
     with Pool(num_worker) as pool:
-        worker_fn = partial(parallel_worker, max_tokens=max_tokens)
+        worker_fn = partial(
+            parallel_worker, 
+            to_chunk_keys=to_chunk_keys, 
+            max_tokens=max_tokens
+        )
         results = list(tqdm(
             pool.imap_unordered(worker_fn, datas),
             total=len(datas),

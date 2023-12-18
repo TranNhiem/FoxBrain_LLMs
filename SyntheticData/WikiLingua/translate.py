@@ -7,7 +7,6 @@ from glob import glob
 from multiprocessing.pool import ThreadPool
 import json
 import os
-from typing import List
 
 import fire
 from llm_proxy import get_router
@@ -33,43 +32,41 @@ def generate_prompt(to_translated, target_language):
     ]
     
 
-def translation_worker(data, target_language, to_translated_keys):
+def translation_worker(data, target_language):
     idx, data = data
     save_path = os.path.join(tmp_path, f"{idx}.jsonl")
     
-    if os.path.exists(save_path) or idx == 6401:
+    if os.path.exists(save_path):
         return
         
-    for key in to_translated_keys:
-        sents = data[key]
-        sents = [sent for sent in sents if len(sent) > 0]
-        
+    translated_data = {}
+    for key, sents in data.items():
+        # we don't need to translate the filename.
+        if key == "file":
+            translated_data[key] = sents[0]
+            continue
+            
         translated_texts = []
+        sents = [sent for sent in sents if len(sent) > 0]
         for sent in sents:
             messages = generate_prompt(sent, target_language)
-            try:
-                response = router.completion(model="gpt-35-turbo", messages=messages)
-            except:
-                print(f"Got some error on index-{idx}!")
-                return
+            response = router.completion(model="gpt-35-turbo", messages=messages)
             translated_text = "|LOST|"
-            
             choices = response.get("choices")
             if choices and len(choices) > 0:
                 message = choices[0].get("message")
             
             if message:
                 content = message.get("content")
-                translated_text = content.strip() if content else ""
+                if content:
+                    translated_text = content.strip()
                 
             translated_texts.append(translated_text)
             
-        translated_text = " ".join(translated_texts)
+        translated_data[key] = " ".join(translated_texts)
         
-        data[key] = translated_text
-
     with open(save_path, "w") as writer:
-        json.dump(data, writer, ensure_ascii=False)
+        json.dump(translated_data, writer, ensure_ascii=False)
 
 
 def run(
@@ -77,9 +74,8 @@ def run(
     save_path: str = "data/LongAlpaca-12k_translated.json",
     target_language: str = "Traditional Chinese",
     proxy_config_path: str = "litellm.router.json",
-    to_translated_keys: List[str] = ["output"],
     num_workers: int = 8,
-    testing: bool = False,
+    testing: bool = False
 ):
     # load the dataset
     with open(data_path, "r") as r:
@@ -102,7 +98,6 @@ def run(
         task = partial(
             translation_worker,
             target_language=target_language, 
-            to_translated_keys=to_translated_keys
         )
         list(tqdm(
             pool.imap_unordered(task, enumerate(datas)),

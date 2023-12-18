@@ -55,9 +55,12 @@ def chunk_text_to_max_tokens(text, max_tokens=512):
 def merge_jsonl_to_json(jsonl_paths, save_path):
     datas = []
     for jsonl_path in jsonl_paths:
-        with open(jsonl_path, "r") as r:
-            data = json.load(r)
-            datas.append(data)
+        try:
+            with open(jsonl_path, "r") as r:
+                data = json.load(r)
+                datas.append(data)
+        except:
+            print(f"Someting wrong when read {json_path}, skipping it!")
             
     with open(save_path, "w") as w:
         json.dump(datas, w, indent=4, ensure_ascii=False)

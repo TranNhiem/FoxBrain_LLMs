@@ -3,6 +3,7 @@
 Consider the translated sentence still have some simplified Chinese, we need to further convert the result into traditional Chinese.
 '''
 import json
+from typing import List
 
 import fire
 from tqdm import tqdm
@@ -12,7 +13,8 @@ from tools import ZHConvert
 
 def run(
     data_path: str = "data/LongAlpaca-12k_translated.json",
-    save_path: str = "data/LongAlpaca-12k_zhTW.json",
+    save_path: str = "data/LongAlpaca-12k_zh-tw.json",
+    to_translated_keys: List[str] = ["output"],
 ):
     # load data
     with open(data_path, "r") as r:
@@ -21,19 +23,18 @@ def run(
     # convert to zh_TW
     convert = ZHConvert()
     converts_datas = []
-    for data in tqdm(datas):
-        batch = list(data.items())
-        convertds = convert.batch_convert([sample[1] for sample in batch])
+
+    
+    for key in to_translated_keys:
+        to_translated = [data[key] for data in datas]
+        translated = convert.batch_convert(to_translated)
         
-        new_data = {}
-        for (key, _), convertd in zip(batch, convertds):
-            new_data[key] = convertd
-            
-        converts_datas.append(new_data)
+        for data, translated_sent in zip(datas, translated):
+            data[key] = translated_sent
 
     # save results
     with open(save_path, "w") as writer:
-        json.dump(converts_datas, writer, indent=4, ensure_ascii=False)
+        json.dump(datas, writer, indent=4, ensure_ascii=False)
 
 
 if __name__ == "__main__":
