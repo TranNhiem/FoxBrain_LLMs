@@ -158,7 +158,7 @@ for idx, conversation in enumerate(conversations_data):
                         translated_pair = {}
                         for key in pair:
                             text = pair[key]
-                            translated_text = parallel_translation(text, direction='English->Vietnamese')
+                            translated_text = parallel_translation(text, direction='English->Traditional_Chinese')
 
                             # Check word count condition
                             # if len(translated_text.split()) >= len(text.split()):
@@ -166,7 +166,7 @@ for idx, conversation in enumerate(conversations_data):
                             translated_pair[key] = translated_text
                             # else:
                             #     print("Translate Failed")
-                            #     text = parallel_translation(text, direction='English->Vietnamese')
+                            #     text = parallel_translation(text, direction='English->Traditional_Chinese')
                             #     translated_pair[key] = text
                         translated_pairs.append(translated_pair)
 
