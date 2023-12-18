@@ -120,7 +120,7 @@ Below is the project structure, outlining key sections and their primary functio
 
   - `Full Finetune_llm`: Fine-tune all layers of language models (LLMs) based on open-source code such as LLaMa 2, Open-LLaMA, etc.
 
-  - `Finetune_llm_QLoRA`: Efficiently fine-tune language models (LLMs) based on open-source code.
+  - `Finetune_llm_QLoRA_&_unsloth Technique`: Efficiently fine-tune language models (LLMs) based on open-source code.
 
 ### Step 4: Continue Training the Model with Human Preference RLHF (Reinforcement Learning from Human Feedback) and DPO (Direct Policy Optimization) Phases
 
