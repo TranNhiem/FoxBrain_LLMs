@@ -1,3 +1,8 @@
+'''
+TranNhiem 2023/12/21/
+Foxbrain LLM model access through API using FastAPI
+
+'''
 import os
 import sys
 
