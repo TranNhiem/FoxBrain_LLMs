@@ -13,7 +13,7 @@ import fire
 from tqdm import tqdm
 
 from utils.data_utils import merge_jsonl_to_json
-from utils.opeai_translator import OpenAITranslate
+from utils.openai.translator import OpenAITranslate
 
 translator = None
 tmp_path = "data/tmp"
@@ -51,7 +51,7 @@ def run(
     data_path: str = "data/LongAlpaca-12k_chunked.json",
     save_path: str = "data/LongAlpaca-12k_translated.json",
     target_language: str = "Traditional_Chinese",
-    proxy_config_path: str = "../utils/litellm.router.json",
+    proxy_config_path: str = "../utils/openai/litellm.router.json",
     to_translated_keys: List[str] = ["output"],
     num_workers: int = 8,
     testing: bool = False,

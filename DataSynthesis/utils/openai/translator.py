@@ -2,7 +2,7 @@
 @Po-Kai 2023/12
 A more convenient and user-friendly multilingual translation tool implemented using the OpenAI API.
 '''
-from .llm_proxy import get_router
+from .cores.base import OpenAIGenerator
 
 
 class OpenAITranslatePrompt(object):
@@ -35,35 +35,14 @@ class OpenAITranslatePrompt(object):
         }
 
 
-class OpenAITranslate(object):
+class OpenAITranslate(OpenAIGenerator):
 
-    def __init__(
-        self, 
-        direction="English->Traditional_Chinese",
-        proxy_config_path="./litellm.router.json"
-    ):
-        self.prompt_factory = OpenAITranslatePrompt(direction=direction)
-        self.router = get_router(proxy_config_path)
+    def _get_prompt_factory(self, direction):
+        return OpenAITranslatePrompt(direction=direction)
 
-    def translate(self, to_translated, model_name="gpt-35-turbo"):
-        messages = self.prompt_factory(to_translated=to_translated)
-
-        translated_text = "|LOST|"
-        try:
-            response = self.router.completion(model=model_name, messages=messages)
-        except Exception as e:
-            print(f"Got some error\nErr message: {e}")
-            translated_text = "|ERR|"
-        else: 
-            choices = response.get("choices")
-            if choices and len(choices) > 0:
-                message = choices[0].get("message")
-                if message:
-                    content = message.get("content")
-                    if content:
-                        translated_text = content.strip() 
-
-        return translated_text
+    def translate(self, to_translated):
+        # In order to be compatible with existing codes.
+        return self(to_translated=to_translated)
 
 
 if __name__ == "__main__":
