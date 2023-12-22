@@ -6,22 +6,23 @@ import multiprocessing
 # import torch
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json 
-
-from data_synth_utils.opeai_translator import OpenAITranslate
+from tqdm import tqdm
+from multiprocessing.pool import ThreadPool
+from data_synth_utils.openai.translator import OpenAITranslate
 from data_synth_utils.converter import ZhTWConvert
 
 
 translator = OpenAITranslate(
     direction="English->Traditional_Chinese",
-    proxy_config_path="./data_synth_utils/litellm.router.json"
+    proxy_config_path="data_synth_utils/openai/litellm.router.json"
 )
 converter = ZhTWConvert()
-num_gpus = 8
+num_workers = 8
 
 def truncate_message(message, max_words=1500):
     words = message.split()
     total_words = len(words)
-    print(total_words)
+    # print(total_words)
 
     if total_words > max_words:
         sections = []  # List to store the sections of the message
@@ -83,52 +84,83 @@ def clean_message(message):
     message = message.replace(" .", ".").strip()
     return message
 
-def translate_section(section, direction, i): 
+def translate_section(section, direction): 
     ## Implement OpenAI Section here
-    translated = translator.translate(section)
-    translated = converter.convert(translated)
+    try:
+        translated = translator.translate(section)
+        translated = converter.convert(translated)
+    except Exception as e:  # This can catch all exceptions including OOM.
+        print(f"Error occurred with error: {str(e)}")
+        # You can also append a placeholder or log the error for further inspection
+        translated = "[Translation Failed]"
+
     return translated
 
 
-def parallel_translation(message, direction="English->Traditional_Chinese"):
-
-    max_words = 400
-
+def translation(message, direction="English->Traditional_Chinese"):
+    
+    max_words = 1024
     message = clean_message(message)
     message = clean_text(message)
     sections = truncate_message(message, max_words=max_words)
     translated_sections = []
 
     # Partition sections into chunks
-    section_chunks = [sections[i:i + num_gpus] for i in range(0, len(sections), num_gpus)]
-   
-    with ThreadPoolExecutor(max_workers=num_gpus) as executor:
-        
-        futures = {executor.submit(translate_section, section, direction, i): section for chunk in section_chunks for i, section in enumerate(chunk)}
-        
-        # Collect results for each future
-        for future in as_completed(futures):
-            try:
-                translated_sections.append(future.result())
-            except Exception as e:  # This can catch all exceptions including OOM.
-                print(f"Error occurred for section {futures[future]}: {str(e)}")
-                # You can also append a placeholder or log the error for further inspection
-                translated_sections.append("[Translation Failed]")
-
+    section_chunks = sections
+    for section in sections:
+        translated = translate_section(section, direction)
+        translated_sections.append(translated)
     return ' '.join(translated_sections)
 
+def parallel_translation(each_section):
+    tasks_process = each_section["task_process"]
+    tasks_process_translated = {}
+
+    for task, content in tasks_process.items():
+        if isinstance(content, dict):
+            input_text = content.get('input', '')
+            output_text = content.get('output', '')
+            translated_input = translation(
+                input_text, 
+                direction='English->Traditional_Chinese'
+            )
+            translated_output = translation(
+                output_text, 
+                direction='English->Traditional_Chinese'
+            )
+
+            tasks_process_translated[task] = {
+                "input": translated_input, "output": translated_output
+            }
+
+        elif isinstance(content, list):
+            translated_pairs = []
+            for pair in content:
+                translated_pair = {}
+                for key in pair:
+                    text = pair[key]
+                    translated_text = translation(
+                        text, 
+                        direction='English->Traditional_Chinese'
+                    )
+                    # Check word count condition
+                    translated_pair[key] = translated_text
+                translated_pairs.append(translated_pair)
+
+            tasks_process_translated[task] = translated_pairs
+    # Add the translated tasks to the new structure
+    return {
+        "title": each_section['title'], 
+        "task_process_translate": tasks_process_translated
+    }
 
 
 # Function to save data
 def save_intermediate_data(data, iteration, base_path):
-    data_file = f"{base_path}_intermediate_{iteration}.json"
-    # count_file = f"{base_path}_count_intermediate_{iteration}.json"
-    
+    data_file = f"{base_path}/tmp_intermediate_{iteration}.json"
     with open(data_file, 'w', encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=4)
-    
-    # with open(count_file, 'w', encoding="utf-8") as file:
-    #     json.dump(count, file, ensure_ascii=False, indent=4)
+
 
 # Load the data
 file_path = "./Wikilingual_task_v2_final.json"
@@ -136,60 +168,20 @@ with open(file_path, 'r') as file:
     conversations_data = json.load(file)
 
 # Iterating through each conversation and translating
-new_data=[]
-for idx, conversation in enumerate(conversations_data):
-    if  4000<idx <=6500:
+new_data = []
+for idx, conversation in tqdm(enumerate(conversations_data), total=len(conversations_data)):
+    if  idx <= 4000:
         process_data = conversation["Processed_generated_instruc"]
         En_sec=conversation['Engl_sect']
-        process_data_translate = []
 
-        for each_section in process_data:
-            tasks_process = each_section["task_process"]
-            tasks_process_translated = {}
-
-            for task, content in tasks_process.items():
-                if isinstance(content, dict):  # Single input-output pair
-                    # Translate and check conditions
-                    input_text = content.get('input', '')
-                    output_text = content.get('output', '')
-                    translated_input = parallel_translation(input_text, direction='English->Traditional_Chinese')
-                    translated_output = parallel_translation(output_text, direction='English->Traditional_Chinese')
-
-                    # Check word count condition
-                    # if len(translated_input.split()) >= len(input_text.split()) and \
-                    # len(translated_output.split()) >= len(output_text.split()):
-                    #     print("translate_meet_condition")
-                    tasks_process_translated[task] = {"input": translated_input, "output": translated_output}
-                    # else:
-                    #     print("translate_Failed")
-                    #     tasks_process_translated[task] = {"input": input_text, "output": output_text}
-
-                
-                elif isinstance(content, list):  # Multiple input-output pairs
-                    translated_pairs = []
-                    for pair in content:
-                        translated_pair = {}
-                        for key in pair:
-                            text = pair[key]
-                            translated_text = parallel_translation(text, direction='English->Traditional_Chinese')
-
-                            # Check word count condition
-                            # if len(translated_text.split()) >= len(text.split()):
-                            #     print("Translate meet condition")
-                            translated_pair[key] = translated_text
-                            # else:
-                            #     print("Translate Failed")
-                            #     text = parallel_translation(text, direction='English->Traditional_Chinese')
-                            #     translated_pair[key] = text
-                        translated_pairs.append(translated_pair)
-
-                    tasks_process_translated[task] = translated_pairs
-
-
-            # Add the translated tasks to the new structure
-            process_data_translate.append({"title": each_section['title'], "task_process_translate": tasks_process_translated})
-        data={"Engl_sect":En_sec, "Processed_generated_instruc_translate":process_data_translate}
+        with ThreadPool(num_workers) as pool:
+            process_data_translate = pool.map(parallel_translation, process_data)
+        data = {
+            "Engl_sect":En_sec,
+            "Processed_generated_instruc_translate":process_data_translate
+        }
         new_data.append(data)
+        
         # Every 1000 iterations, save the current state
         if idx % 50 == 0:
             print(f"Saving intermediate results at iteration {idx}")
