@@ -1,0 +1,14 @@
+[
+  {
+    "scenario": "CNN",
+    "model_name": "twllama_v0",
+    "api_base": "http://colglx0008000:1234",
+    "system_prompt": "",
+    "suffix_inst": "",
+    "prompt_template": "<s> {system_prompt} \n\n {context} \n\n 根據上述文章來總結\n\n {suffix_inst}",
+    "temperature": 0.3,
+    "max_new_tokens": 128,
+    "eval_num_samples": 162,
+    "output_dir": "./outputs"
+  }
+]
