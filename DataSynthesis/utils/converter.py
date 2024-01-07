@@ -8,6 +8,7 @@ from itertools import chain
 from multiprocessing.pool import ThreadPool
 from typing import List
 
+import opencc
 import requests
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
@@ -28,6 +29,7 @@ class ZhTWConvert(object):
         session = requests.Session()
         session.mount("https://", adapter)
         self.session = session
+        self.converter = opencc.OpenCC("s2twp")
 
     def _batch_convert_worker(self, batch):
         batch = "|||".join(batch)
@@ -44,7 +46,11 @@ class ZhTWConvert(object):
             self.api_endpoint, 
             data={"text": text, "converter": self.style}
         )
-        convert_text = response.json()["data"]["text"]
+        try:
+            convert_text = response.json()["data"]["text"]
+        except:
+            print("Error occured! Using opencc to convert.")
+            convert_text = self.converter.convert(text)
         return convert_text
   
     def batch_convert(self, texts: List[str], batch_size=1000, num_workers=4):
