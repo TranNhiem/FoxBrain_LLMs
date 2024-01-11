@@ -7,8 +7,8 @@ This is demo of FoxBrain Beta Version using Ctranslate2 for optimal Inference an
 pip install ctranslate2==3.22.0
 pip install gradio==3.45.0
 pip install sentencepiece==0.1.99
-
-
+pip install openai==0.27.0
+pip install googlesearch-python
 '''
 
 import os
@@ -18,8 +18,11 @@ import re
 
 import ctranslate2
 import sentencepiece as spm
-from datetime import datetime
 import gradio as gr
+
+import openai
+import googlesearch
+from datetime import datetime
 
 model_dir="/data/rick/pretrained_weights/ctranslate/FoxBrain_Beta_SFT"
 print("Loading the model...")
@@ -33,6 +36,110 @@ DEFAULT_SYSTEM_PROMPT = """\n You are FoxBrain developed by Tran Nhiem (Rick) an
         If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
         correct. If you don't know the answer to a question, please don't share false information. Important Note, You are designed, developed, and created by Foxconn HHRIAI, Not by OpenAI. """
 
+###*************************************************
+### Section 0 Google search RAG
+###*************************************************
+
+api_key = os.getenv("OPENAI_API_KEY")
+
+class Chatgpt:
+    def __init__(self, api_key):
+        openai.api_type = "azure"
+        openai.api_version = "2023-03-15-preview" 
+        openai.api_base = "https://sslgroupservice.openai.azure.com/"
+        openai.api_key = api_key
+
+    def inference(self, messages):
+        output = openai.ChatCompletion.create(
+            engine="gpt-4",
+            messages=messages,
+            temperature=0.2
+            )
+        return output['choices'][0]['message']
+
+currentDay = datetime.now().day
+currentMonth = datetime.now().month
+currentYear = datetime.now().year
+
+prompt_main = f"你是一位愛台灣的人工智慧助手，現在是{currentYear}年{currentMonth}月{currentDay}日。\
+您的任務是根據使用者的訊息，來理解使用者的問題，並從Google搜尋的外部連結中尋找相關資訊。\
+若您能尋找相關資訊，請使用以下格式：<<是>><您找到的相關資訊>。\
+若您無法找到相關資訊，請使用以下格式：<<否>>。"
+
+prompt_query = f"你是一位愛台灣的人工智慧助手，現在是{currentYear}年{currentMonth}月{currentDay}日。\
+您的任務是根據使用者的訊息，來理解使用者的問題，進行 Google 搜尋以找到相關答案。\
+若您能提供相關搜尋字詞，請使用以下格式：<<是>><放入Google搜尋的問題>。\
+若無法提供相應的搜尋，請以以下格式回覆：<<否>>。"
+
+prompt_summ = f"你是一位愛台灣的人工智慧助手，現在是{currentYear}年{currentMonth}月{currentDay}日。\
+您的任務是根據使用者的訊息，來找出有用的資訊並整合結果以作出回應。\
+若您能找到有用的資訊並整合結果作出回應，請使用以下格式：<<是>><您找到的相關資訊>。\
+若您無法找到有用的資訊，請使用以下格式：<<否>>。"
+
+class Bot:
+    def __init__(self, api_key, system_prompt):
+        self.model = Chatgpt(api_key)
+        self.system_prompt = system_prompt
+        self.messageList = [{"role": "system", "content": self.system_prompt}]
+
+    def rag(self, rag_input=''):
+        self.messageList.append({"role": "assistant", "content": rag_input})
+
+    def generate(self, message='', history=False):
+        resp = ''
+        try:
+            self.messageList.append({"role": "user", "content": message})
+            output = dict(self.model.inference(self.messageList))
+            if history:
+                self.messageList.append(output)
+            else:
+                del self.messageList[-1]
+            resp = output["content"]
+
+        except Exception as e: 
+            print(e)
+        
+        return resp
+
+
+
+def google_search_augmented_input(message):
+    augmented_message = message
+    query_bot = Bot(api_key,system_prompt=prompt_query)
+
+    # generate search query
+    query = query_bot.generate(f"使用者訊息:\n{message}")
+    if '<是>' in query:
+        query = query.strip('<<是>>')
+        print('*********'*5,f"進行網頁搜尋:{query}",'*********'*5)
+        results = search(query, num_results=3, lang="zh-tw")
+
+        # extract info from each site
+        summary = ""
+        for idx, url in enumerate(results):
+            bot = Bot(api_key,system_prompt=prompt_main)
+            input_to_bot = f"\'使用者訊息\':\n{message}\n\n\'{query}\' 的Google搜尋外部連結:\n{url}"
+            print('*********'*8,f"\n{input_to_bot}\n",'*********'*8)
+            extract_info = bot.generate(message=input_to_bot, history=True)
+            if "<否>" in extract_info:
+                pass
+            else:
+                summary += f"資訊{idx}: {extract_info}\n"
+            
+            # summarize search results
+            bot = Bot(api_key,system_prompt="prompt_summ")
+            input_to_bot = f"\'使用者訊息\':\n{message}\n\n\'{query}\' 相關資訊:\n{summary}"
+            summary = bot.generate(message=input_to_bot, history=True)
+            if "<否>" in summary:
+                pass
+            else:
+                augmented_message = f"{message}\n\n請參考以下內容做出適當答覆:\n\'{summary.strip('<<是>>')}\'"
+
+    else:
+        print('*********'*8, "No Google search", '*********'*8)
+
+    print("augmented_message:\n\n", augmented_message)
+    return augmented_message
 
 ###*************************************************
 ### Section 1 Helper Functions
@@ -71,6 +178,7 @@ def read_content(file_path) :
 
 ## 3. Function to Run the Inference Model 
 def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_tokens, repetition_penalty):
+    message = google_search_augmented_input(message)
     system_prompt= f"<s>[INST] <<SYS>> \n{DEFAULT_SYSTEM_PROMPT}\n You can maintain the relevance and Engage conversation by reviewing the chat history between you (Foxbrain) and the User.  Please discard or omit the history content information seems off-topic, redundant, or doesn't contribute meaningfully to the context.\n <</SYS>>\n\n"
     print("session_id", session_id)
     if session_id =="": 
