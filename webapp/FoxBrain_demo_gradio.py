@@ -204,7 +204,7 @@ with gr.Blocks() as demo:
     #gr.Markdown("""<h1><center> SIF-LLM Assistant (Alpha Released)  </center></h1>""")
     gr.HTML(read_content("./html_header.html"))
 
-    chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=500)
+    chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=300)
     
     ## Help to Create the Unique user ID
     gr.HTML("""
