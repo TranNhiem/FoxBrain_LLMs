@@ -99,9 +99,14 @@ def generate_words(sp, step_results):
 #     except Exception as e:
 #         # Handle any errors that might occur during inference
 #         text_output = f"Error during inference: {str(e)}"
+<<<<<<< HEAD
 #     return {"generated_text": text_output}
 
 
+=======
+
+#     return {"generated_text": text_output}
+>>>>>>> main
 @app.post("/generate/{model_name}")
 def generate_text(model_name: str, payload: dict):
     # Debugging line to print the model name
