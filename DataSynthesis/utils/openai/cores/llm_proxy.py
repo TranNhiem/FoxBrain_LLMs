@@ -11,4 +11,5 @@ def get_router(config_path):
     with open(config_path, "r") as r:
         config = json.load(r)
     router = Router(model_list=config, num_retries=10)
-    return router
+    model_names = [item["model_name"] for item in config]
+    return router, model_names

@@ -9,7 +9,7 @@ class OpenAIGenerator(object):
 
     def __init__(self, proxy_config_path, *arg, **kwargs):
         self.prompt_factory = self._get_prompt_factory(*arg, **kwargs)
-        self.router = get_router(proxy_config_path)
+        self.router, self.model_names = get_router(proxy_config_path)
         self.model_name = "gpt-35-turbo"
 
     def __call__(self, **prompt_kwargs):
@@ -33,6 +33,8 @@ class OpenAIGenerator(object):
         return result_text
 
     def set_model_name(self, model_name):
+        assert model_name in self.model_names, f"{model_name} is not an available model name!"
         self.model_name = model_name
+        
     def _get_prompt_factory(self, *arg, **kwargs):
         raise NotImplementedError
