@@ -71,6 +71,6 @@ if __name__ == "__main__":
         "关注更便宜的健康食材",
         "在家制作食物",
     ]
-    convert = ZHConvert()
+    convert = ZHTWConvert()
     resutls = convert.batch_convert(zh_sents)
     print(resutls)
