@@ -1,0 +1,24 @@
+[
+  {
+    "scenario": "EN2CH",
+    "model_name": "v0",
+    "api_base": "http://colglx0008000:1234",
+    "system_prompt": "",
+    "suffix_inst": "",
+    "prompt_template": "<s> {system_prompt} \n\n {context} \n\n 將以下內容翻譯成中文\n\n {suffix_inst}",
+    "temperature": 0.3,
+    "eval_num_samples": 100,
+    "output_dir": "./outputs"
+  },
+  {
+    "scenario": "CH2EN",
+    "model_name": "v0",
+    "api_base": "http://colglx0008000:1234",
+    "system_prompt": "",
+    "suffix_inst": "",
+    "prompt_template": "<s> {system_prompt} \n\n {context} \n\n 將以下內容翻譯成英文\n\n {suffix_inst}",
+    "temperature": 0.3,
+    "eval_num_samples": 100,
+    "output_dir": "./outputs"
+  }
+]

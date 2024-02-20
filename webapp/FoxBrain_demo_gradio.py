@@ -27,7 +27,7 @@ generator = ctranslate2.Generator(model_dir, device="cuda") # device_index=[0, 1
 sp = spm.SentencePieceProcessor(os.path.join(model_dir, "tokenizer.model"))
 
 ## Default System Prompt NLP General Tasks
-DEFAULT_SYSTEM_PROMPT = """\n You are FoxBrain developed by Tran Nhiem (Rick) and (Project Lead by Professor Li, Yung-Hui) at Foxconn.  As a helpful assistant, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your \
+DEFAULT_SYSTEM_PROMPT = """\n You are FoxBrain developed by HHRIAI LLM Research Team (Project Lead by Professor Li, Yung-Hui) at Foxconn.  As a helpful assistant, respectful and honest assistant. Always answer as helpfully as possible, while being safe. Your \
         answers should not include any harmful, unethical, racist, sexist, toxic, dangerous, or illegal content and response the language as the same as User Input Langauge. Please ensure\
         that your responses are socially unbiased and positive in nature and response the same language as Human input.\
         If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
@@ -204,7 +204,7 @@ with gr.Blocks() as demo:
     #gr.Markdown("""<h1><center> SIF-LLM Assistant (Alpha Released)  </center></h1>""")
     gr.HTML(read_content("./html_header.html"))
 
-    chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=500)
+    chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=300)
     
     ## Help to Create the Unique user ID
     gr.HTML("""
@@ -352,4 +352,4 @@ with gr.Blocks() as demo:
 
 
 demo.queue(max_size=128, concurrency_count=20)
-demo.launch(debug=True, server_port=12347, share=True)
+demo.launch(debug=True, server_port=12345, share=True)
