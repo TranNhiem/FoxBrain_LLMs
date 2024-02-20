@@ -10,31 +10,36 @@ pip install sentencepiece==0.1.99
 
 
 '''
-
+from datetime import datetime
 import os
 import sys
+import uuid
 import json 
 import re
 
 import ctranslate2
 import sentencepiece as spm
-from datetime import datetime
 import gradio as gr
+from langchain.embeddings import HuggingFaceEmbeddings
+from langchain.document_loaders import PyPDFLoader
+from langchain.text_splitter import  RecursiveCharacterTextSplitter
+from langchain.vectorstores import Chroma
 
-model_dir="/data/rick/pretrained_weights/ctranslate/FoxBrain_Beta_SFT"
-model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_3epc"
-model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_5epc"
+
+# model_dir="/data/rick/pretrained_weights/ctranslate/FoxBrain_Beta_SFT"
+# model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_3epc"
+# model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_5epc"
 # model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_7_24epc"
 # model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_8_6epc"
 
-# model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_10_epc"
-# model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_6_5_epc_extend_5_ckp"
-model_dir="/data/rick/pretrained_weights/ctranslate/ctrans_FoxBrain_wikilingual_longalpac_6B_8_epc_update_v1_new"
-model_dir ="/data/rick/pretrained_weights/ctranslate/ctrans_FoxBrain_wikilingual_longalpac_6B_5_epc_update_v1_test"
-model_dir= "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_5_85epc"
-model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_8epc"
-model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
-model_dir="/data/rick/pretrained_weights/ctranslate/yi_wikilingual_longalpac_orca_11epc_0_5epc"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_10_epc"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_6_5_epc_extend_5_ckp"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctrans_FoxBrain_wikilingual_longalpac_6B_8_epc_update_v1_new"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctrans_FoxBrain_wikilingual_longalpac_6B_5_epc_update_v1_test"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_5_85epc"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_8epc"
+# model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
+model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
 print("Loading the model...")
 
 generator = ctranslate2.Generator(model_dir, device="cpu") # device="cuda"# device_index=[0, 1, 2, 3]
@@ -57,6 +62,11 @@ DEFAULT_SYSTEM_PROMPT="""you are a Foxbrain AI assistant developmen by Tran Rick
 DEFAULT_SYSTEM_PROMPT_="""you are a Foxbrain AI assistant developmen by Tran Rick, designed to help users find detailed and comprehensive information. Always aim to provide answers in such a manner that users don't need to search elsewhere for clarity.\
         If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
         correct. If you don't know the answer to a question, please don't share false information."""
+
+###*************************************************
+### For PDF
+###*************************************************
+vectorstores = {}
 
 ###*************************************************
 ### Section 1 Helper Functions
@@ -95,9 +105,12 @@ def read_content(file_path) :
 
 ## 3. Function to Run the Inference Model 
 def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_tokens, repetition_penalty):
+    global vectorstores
+
     system_prompt= f"<s>[INST] <<SYS>> \n{DEFAULT_SYSTEM_PROMPT}\n You can maintain the relevance and Engage conversation by reviewing the chat history between you (Foxbrain) and the User.  Please discard or omit the history content information seems off-topic, redundant, or doesn't contribute meaningfully to the context.\n <</SYS>>\n\n"
     system_prompt=f"<|im_start|>system\n{DEFAULT_SYSTEM_PROMPT}<|im_end|>\n\n"
-    print("session_id", session_id)
+    print("session_id", session_id, type(session_id))
+    session_id = str(session_id)
     if session_id =="": 
         session_id = datetime.now().strftime("%Y%m%d%H")
 
@@ -122,8 +135,17 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         chatbot = truncated_conversation
 
     if len(chatbot)<1: 
-        input_prompt_=""
-        input_prompt =system_prompt+ "<|im_start|>user " + input_prompt_ + str(message) + "<|im_end|>"+"\n\n<|im_start|>assistant:"
+        if session_id in vectorstores and vectorstores[session_id] is not None:
+            vectorstore = vectorstores[session_id]
+            print(vectorstore)
+            docs = vectorstore.similarity_search(str(message))
+            ref_content = "\n".join([re.sub("\n+", " ", re.sub("-\n+", "", doc.page_content)) for doc in docs])
+            print("ref_content:", ref_content)
+            input_prompt_ = f"Please answer the question based on the following passage!\n\nPassage:{ref_content}\n\nQuestion:"
+            input_prompt =system_prompt+ "<|im_start|>user " + input_prompt_ + str(message) + "<|im_end|>"+"\n\n<|im_start|>assistant:"
+        else:
+            input_prompt_=""
+            input_prompt =system_prompt+ "<|im_start|>user " + input_prompt_ + str(message) + "<|im_end|>"+"\n\n<|im_start|>assistant:"
     else: 
         input_prompt_=""
         for interaction in chatbot:
@@ -223,6 +245,34 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
     return "",chatbot
 
 
+embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
+
+
+def read_pdf_to_vec(pdf_path):
+    loader = PyPDFLoader(pdf_path) 
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0) 
+    texts = loader.load_and_split(splitter)
+    vectorstore = Chroma.from_documents(texts, embeddings)
+    return vectorstore
+
+
+def process_file(file_input, session_id):
+    global vectorstores
+    session_id = str(session_id)
+    print("session id:", session_id)
+    try:
+        pdf_path = file_input.name
+    except:
+        print("Fail to read the pdf!")
+        vectorstores[session_id] = None
+        return
+    else:
+        vectorstore = read_pdf_to_vec(pdf_path)
+        vectorstores[session_id] = vectorstore
+        print("Success to read the pdf!")
+        print(vectorstores[session_id])
+        return
+
 ###*************************************************
 ### Section 1 Gradio App Interface
 ###*************************************************
@@ -230,51 +280,25 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
 css = """.toast-wrap { display: none !important } """
 title = "FoxBrain Assistant"
 
+
 with gr.Blocks() as demo:
     #gr.Markdown("""<h1><center> SIF-LLM Assistant (Alpha Released)  </center></h1>""")
-    gr.HTML(read_content("/data/rick/LLM/Multimodal_Integrated_App/Language/demo_FoxBrain_General/html_header.html"))
+    gr.HTML(read_content("html_header.html"))
 
     chatbot = gr.Chatbot(label="FoxBrain Assistant.").style(height=500)
     
     ## Help to Create the Unique user ID
-    gr.HTML("""
-        <script>
-        function generateUUID() {
-            // Generate a simple UUID
-            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-                return v.toString(16);
-            });
-        }
 
-        // Store UUID in local storage or generate a new one
-        if (!localStorage.getItem("sessionUUID")) {
-            localStorage.setItem("sessionUUID", generateUUID());
-        }
-
-        // Function to set the UUID to the hidden session ID input
-        function setSessionID() {
-            var sessionInput = document.getElementById('session-id-input');
-            if (sessionInput) {
-                sessionInput.value = localStorage.getItem("sessionUUID");
-            } else {
-                // If the element is not found, try again after a short delay
-                setTimeout(setSessionID, 100);
-            }
-        }
-
-        // Set the UUID on window load
-        window.onload = setSessionID;
-        </script>
-    """)
 
     ## Define the hidden text input for the session ID
-    session_id = gr.Textbox( label="Session ID", visible=False, elem_id="session-id-input")
+    # session_id = gr.Textbox(label="Session ID", visible=False, elem_id="session-id-input")
+    session_id = gr.State(uuid.uuid4)
 
     with gr.Row():
-        message = gr.Textbox(show_label=False, placeholder="Enter your prompt and press enter", visible=True)
-    state = gr.State()
+        file_input = gr.File(label="PDF", file_count="single", scale=1)
+        message = gr.Textbox(show_label=False, placeholder="Enter your prompt and press enter", visible=True, scale=2)
     
+    state = gr.State()
     
     with gr.Accordion("Parameters", open=False, visible=True) as parameter_row:
 
@@ -353,8 +377,12 @@ with gr.Blocks() as demo:
                     )
 
     message.submit(predict, inputs=[session_id, message, chatbot, temperature, top_k, top_p, max_output_tokens,repetition_penalty ], outputs=[message, chatbot], queue=True) #repetition_penalty,temperature, top_p, penalty_alpha, top_k, max_output_tokens,base_model_input, conversation_style
-
-
+    file_input.change(
+        process_file, 
+        inputs=[file_input, session_id], 
+        outputs=None, 
+    )
+    
     gr.HTML(
                 """
                 <div class="footer">

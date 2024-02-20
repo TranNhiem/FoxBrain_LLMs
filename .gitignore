@@ -20,3 +20,10 @@ rad.json
 *.flf
 #Test results file
 TestResults.xml
+
+# For testing file
+*.pdf
+*.ipynb
+
+# temp
+__pycache__/
