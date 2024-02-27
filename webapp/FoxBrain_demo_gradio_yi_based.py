@@ -26,6 +26,8 @@ from langchain.text_splitter import  RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
 
 
+HF_token = os.environ.get("HF_token")
+
 # model_dir="/data/rick/pretrained_weights/ctranslate/FoxBrain_Beta_SFT"
 # model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_3epc"
 # model_dir="/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_fl16_6B_5epc"
@@ -39,10 +41,11 @@ from langchain.vectorstores import Chroma
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_5_85epc"
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_8epc"
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
-model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
+#  "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
+model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
 print("Loading the model...")
 
-generator = ctranslate2.Generator(model_dir, device="cpu") # device="cuda"# device_index=[0, 1, 2, 3]
+generator = ctranslate2.Generator(model_dir, device="cuda", device_index=[0]) # device_index=[0, 1, 2, 3]
 sp = spm.SentencePieceProcessor(os.path.join(model_dir, "tokenizer.model"))
 
 ## Default System Prompt NLP General Tasks
@@ -111,7 +114,7 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
     system_prompt=f"<|im_start|>system\n{DEFAULT_SYSTEM_PROMPT}<|im_end|>\n\n"
     print("session_id", session_id, type(session_id))
     session_id = str(session_id)
-    if session_id =="": 
+    if session_id == "": 
         session_id = datetime.now().strftime("%Y%m%d%H")
 
     ##  Check the History Conversation
@@ -134,39 +137,45 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         # Update the conversation with the truncated version
         chatbot = truncated_conversation
 
-    if len(chatbot)<1: 
-        if session_id in vectorstores and vectorstores[session_id] is not None:
-            vectorstore = vectorstores[session_id]
-            print(vectorstore)
-            docs = vectorstore.similarity_search(str(message))
-            ref_content = "\n".join([re.sub("\n+", " ", re.sub("-\n+", "", doc.page_content)) for doc in docs])
-            print("ref_content:", ref_content)
-            input_prompt_ = f"Please answer the question based on the following passage!\n\nPassage:{ref_content}\n\nQuestion:"
-            input_prompt =system_prompt+ "<|im_start|>user " + input_prompt_ + str(message) + "<|im_end|>"+"\n\n<|im_start|>assistant:"
-        else:
-            input_prompt_=""
-            input_prompt =system_prompt+ "<|im_start|>user " + input_prompt_ + str(message) + "<|im_end|>"+"\n\n<|im_start|>assistant:"
-    else: 
-        input_prompt_=""
-        for interaction in chatbot:
-            print("This is chatbot length", len(chatbot))
+    if session_id in vectorstores:
+        vectorstore = vectorstores[session_id]
+        print(vectorstore)
+        docs = vectorstore.similarity_search(str(message))
+        ref_contents = []
+        for idx, doc in enumerate(docs):
+            content = re.sub("-\n+", "", doc.page_content)
+            content = re.sub("\n+", " ", content)
+            content = re.sub("\s+", " ", content)
+            ref_contents.append(f"chunk {idx+1}: {content}")
+        ref_contents = "\n".join(ref_contents)
+        ref_contents = f"Please answer the question based on the following passage!\nPassage:\n{ref_contents}\nQuestion:{message}"
+    else:
+        ref_contents = message
+    print("ref content:", ref_contents)
 
+    if len(chatbot) >= 1:
+        history_prompt = []
+        for interaction in chatbot:
+            # print("This is chatbot length", len(chatbot))
             # Replace patterns and strip tags
-            output_string_1 = re.sub(r'👤:', 'User:', interaction[0])#Human:
-            # print(output_string_1)
+            output_string_1 = re.sub(r'👤:', 'User:', interaction[0])
             output_string_1=re.sub(r'<|im_start|>user', '', output_string_1)
             output_string_1=re.sub(r'<|im_end|>', '', output_string_1)
-            # print(output_string_1)
             output_string_2 = re.sub(r'FoxBrain 😃:', 'FoxBrain:', interaction[1])
             output_string_2=re.sub(r'<|im_start|>', '', output_string_2)
             output_string_2=re.sub(r'<|im_end|>', '', output_string_2)
-           # Append the current interaction to the accumulated interactions
-            #input_prompt_ += "["+"{"+str(output_string_1) + "}" +"," "\n\n"+ "{"+ str(output_string_2) +"}" +"]"#"\n\n"
-            input_prompt_ += "{"+str(output_string_1) + "}" +"," "\n\n"+ "{"+ str(output_string_2) +"}" #"\n\n"
+            history_prompt.append(f"{{{str(output_string_1) }}},\n{{{str(output_string_2)}}}")
+        history_prompt = ",\n".join(history_prompt)
+        history_prompt = f"Here is the history conversation between you (FoxBrain) and Human:\n{history_prompt}"
+        history_prompt = history_prompt + "\n\n"
+    else:
+        history_prompt = ""
+    print("chat history:", history_prompt)
 
-        print("chat History", input_prompt_)
-        input_prompt =system_prompt + "<|im_start|>user"+ "\nHere is the history conversation between you (FoxBrain) and Human:" +"\n\n"+ input_prompt_ + str(message) +"<|im_end|>" + "\n\n<|im_start|>assistant:"
-        print(input_prompt)
+    input_prompt = system_prompt + f"<|im_start|>user:{history_prompt}{ref_contents}<|im_end|>\n\n<|im_start|>assistant:"
+    print("final input:", input_prompt)
+
+
     ## Tokenize the Model via Sentencepiece
     prompt_tokens = sp.encode(input_prompt, out_type=str)
 
@@ -180,9 +189,6 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         sampling_topp=top_p,
         repetition_penalty=repetition_penalty,
            end_token=[2]
-        
-
-
     )
 
     def generate_words(sp, step_results):   
@@ -245,7 +251,10 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
     return "",chatbot
 
 
-embeddings = HuggingFaceEmbeddings(model_name="intfloat/multilingual-e5-large")
+embeddings = HuggingFaceEmbeddings(
+    model_name="maidalun1020/bce-embedding-base_v1",
+    model_kwargs = {"device": "cuda", "token": HF_token},
+)
 
 
 def read_pdf_to_vec(pdf_path):
@@ -264,7 +273,7 @@ def process_file(file_input, session_id):
         pdf_path = file_input.name
     except:
         print("Fail to read the pdf!")
-        vectorstores[session_id] = None
+        del vectorstores[session_id]
         return
     else:
         vectorstore = read_pdf_to_vec(pdf_path)
