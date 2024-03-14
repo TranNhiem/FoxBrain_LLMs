@@ -24,6 +24,9 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import  RecursiveCharacterTextSplitter
 from langchain.vectorstores import Chroma
+from langchain.retrievers.multi_vector import MultiVectorRetriever
+from langchain.schema.document import Document
+from langchain.storage import InMemoryStore
 
 
 HF_token = os.environ.get("HF_token")
@@ -41,11 +44,16 @@ HF_token = os.environ.get("HF_token")
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_F32_6B_5_85epc"
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_8epc"
 # model_dir = "/data/rick/pretrained_weights/ctranslate/ctranslate_yi_wikilingual_longalpac_f32_6B_11_epc"
-#  "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
-model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
+# model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
+# model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/ctranslate_yi_wikilingual_longalpaca_f32_6B_11epc_20k_openOrca"
+# model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain_Released_model_Public/FoxBrain_General/Foxbrain_Trans_V3_dataset_21500_steps"
+# model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/Yi_16k_data_v3_15500_steps_extend_85750_step_orca_gpt4_5epc_data_v2"
+model_dir = "/LLM_32T/pretrained_weights/ctranslate2/FoxBrain/Yi_16k_data_v3_10250_steps_extend_85750_step_orca_gpt4_5epc_data_v2"
 print("Loading the model...")
 
-generator = ctranslate2.Generator(model_dir, device="cuda", device_index=[0]) # device_index=[0, 1, 2, 3]
+
+
+generator = ctranslate2.Generator(model_dir, device="cuda") # device_index=[0, 1, 2, 3]
 sp = spm.SentencePieceProcessor(os.path.join(model_dir, "tokenizer.model"))
 
 ## Default System Prompt NLP General Tasks
@@ -62,10 +70,15 @@ DEFAULT_SYSTEM_PROMPT="""you are a Foxbrain AI assistant developmen by Tran Rick
            Your overarching goal is to be a reliable source of knowledge, translating any instruction or task into actionable and easily digestible information.\
         If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
         correct. If you don't know the answer to a question, please don't share false information."""
+
 DEFAULT_SYSTEM_PROMPT_="""you are a Foxbrain AI assistant developmen by Tran Rick, designed to help users find detailed and comprehensive information. Always aim to provide answers in such a manner that users don't need to search elsewhere for clarity.\
         If a question does not make any sense, or is not factually coherent, explain why instead of answering something not \
         correct. If you don't know the answer to a question, please don't share false information."""
 
+# Adding on 3/09
+DEFAULT_SYSTEM_PROMPT = """You are a Foxbrain AI assistant, crafted to guide users to detailed and comprehensive information, ensuring clarity that eliminates the need for further search. \
+Tackle tasks systematically, justifying each step to the user. For multiple-choice questions, pinpoint the correct answer first, then explore why other options don't fit, simplifying even complex tasks into understandable terms.\
+ Emphasize your multilingual expertise, translating and elucidating language tasks with ease. Dissect task definitions or samples into fundamental components, each illuminated with appropriate examples. Your main objective is to be a trusted knowledge source, converting any instruction or task into actionable, clear information. If a query is nonsensical or factually unsound, prefer to clarify the confusion rather than providing incorrect responses. Should you be unsure of an answer, refrain from disseminating false information."""
 ###*************************************************
 ### For PDF
 ###*************************************************
@@ -107,7 +120,7 @@ def read_content(file_path) :
     return content
 
 ## 3. Function to Run the Inference Model 
-def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_tokens, repetition_penalty):
+def predict(session_id, message, chatbot, temperature, top_k, top_p, max_output_tokens, repetition_penalty, use_history):
     global vectorstores
 
     system_prompt= f"<s>[INST] <<SYS>> \n{DEFAULT_SYSTEM_PROMPT}\n You can maintain the relevance and Engage conversation by reviewing the chat history between you (Foxbrain) and the User.  Please discard or omit the history content information seems off-topic, redundant, or doesn't contribute meaningfully to the context.\n <</SYS>>\n\n"
@@ -138,22 +151,34 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         chatbot = truncated_conversation
 
     if session_id in vectorstores:
-        vectorstore = vectorstores[session_id]
+        vectorstore, full_content = vectorstores[session_id]
         print(vectorstore)
-        docs = vectorstore.similarity_search(str(message))
-        ref_contents = []
-        for idx, doc in enumerate(docs):
-            content = re.sub("-\n+", "", doc.page_content)
-            content = re.sub("\n+", " ", content)
-            content = re.sub("\s+", " ", content)
-            ref_contents.append(f"chunk {idx+1}: {content}")
-        ref_contents = "\n".join(ref_contents)
-        ref_contents = f"Please answer the question based on the following passage!\nPassage:\n{ref_contents}\nQuestion:{message}"
+        
+        if full_content == "":
+            # bad oo
+            if isinstance(vectorstore, MultiVectorRetriever):
+                docs = vectorstore.invoke(str(message))
+                print("Docs:", docs)
+            else:
+                docs = vectorstore.similarity_search(str(message), topk=2)
+            
+            ref_contents = []
+            for idx, doc in enumerate(docs):
+                content = re.sub("-\n+", "", doc.page_content)
+                content = re.sub("\n+", " ", content)
+                content = re.sub("\s+", " ", content)
+                ref_contents.append(f"chunk {idx+1}: {content}")
+                # ref_contents.append(f"片段-{idx+1}: {content}")
+            ref_contents = "\n".join(ref_contents)
+            ref_contents = f"Please answer the question in Traditional Chinese based on the following chunks!\n{ref_contents}\nQuestion:{message}"
+            # ref_contents = f"請依據以下所提供之多個片段，回答問題!\n{ref_contents}\n問題:{message}"
+        else:
+            ref_contents = f"Please answer the question in Traditional Chinese based on the following article!\n{full_content}\nQuestion:{message}"
     else:
         ref_contents = message
     print("ref content:", ref_contents)
 
-    if len(chatbot) >= 1:
+    if use_history and len(chatbot) >= 1:
         history_prompt = []
         for interaction in chatbot:
             # print("This is chatbot length", len(chatbot))
@@ -167,7 +192,8 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
             history_prompt.append(f"{{{str(output_string_1) }}},\n{{{str(output_string_2)}}}")
         history_prompt = ",\n".join(history_prompt)
         history_prompt = f"Here is the history conversation between you (FoxBrain) and Human:\n{history_prompt}"
-        history_prompt = history_prompt + "\n\n"
+        # history_prompt = f"這裡是你(FoxBrain)與使用者的交談歷史紀錄:\n{history_prompt}"
+        history_prompt = "\n" + history_prompt + "\n\n"
     else:
         history_prompt = ""
     print("chat history:", history_prompt)
@@ -188,7 +214,7 @@ def predict(session_id, message, chatbot, temperature, top_k,top_p, max_output_t
         sampling_topk=top_k,
         sampling_topp=top_p,
         repetition_penalty=repetition_penalty,
-           end_token=[2]
+        end_token=[2]
     )
 
     def generate_words(sp, step_results):   
@@ -257,12 +283,89 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 
-def read_pdf_to_vec(pdf_path):
+prompt_text = """
+  You are responsible for concisely summarizing table or text chunk:
+
+  {chunk}
+"""
+
+def summarize(to_summarize):
+    prompt_tokens = sp.encode(prompt_text.format(chunk=to_summarize), out_type=str)
+    #system_prompt_tokens=sp.encode(input_prompt_, out_type=str)
+    summarized = generator.generate_tokens(
+        prompt_tokens,
+        # static_prompt=system_prompt_tokens,
+        max_length=128,
+        sampling_temperature=0.98,
+        sampling_topk=20,
+        sampling_topp=0.5,
+        repetition_penalty=1.2,
+        end_token=[2]
+    )
+
+    def generate_words(sp, step_results):   
+        tokens_buffer = []
+
+        for step_result in step_results:
+            is_new_word = step_result.token.startswith("▁")
+
+            if is_new_word and tokens_buffer:
+                word = sp.decode(tokens_buffer)
+                if word:
+                    yield word
+                tokens_buffer = []
+
+            tokens_buffer.append(step_result.token_id)
+
+        if tokens_buffer:
+            word = sp.decode(tokens_buffer)
+            if word:
+                yield word
+
+
+    text_output = ""
+    for word in generate_words(sp, summarized):
+        # if text_output:
+        word = " " + word
+        #print(word, end="", flush=True)
+        text_output += word
+
+    return text_output
+
+
+def pdf_rag(pdf_path, mode="advance"):
     loader = PyPDFLoader(pdf_path) 
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0) 
     texts = loader.load_and_split(splitter)
-    vectorstore = Chroma.from_documents(texts, embeddings)
-    return vectorstore
+
+    pages = loader.load()
+    if len(pages) > 5:
+        full_content = ""
+    else:
+        full_content = "\n".join([page.page_content for page in pages])
+
+    if mode == "naive":
+        vectorstore = Chroma.from_documents(texts, embeddings)
+        return vectorstore
+    elif mode == "advance":
+        # step 1. summarize
+        summaries = [summarize(text) for text in texts]
+        print("summarizes:", "\n".join(summaries))
+        # step 2. create vector database
+        retriever = MultiVectorRetriever(
+            vectorstore=Chroma(collection_name="summaries", embedding_function=embeddings),
+            docstore=InMemoryStore(),
+            id_key="doc_id"
+        )
+
+        doc_ids = [str(uuid.uuid4()) for _ in texts]
+        summary_texts = [
+            Document(page_content=content, metadata={"doc_id": doc_ids[idx]})
+            for idx, content in enumerate(summaries)
+        ]
+        retriever.vectorstore.add_documents(summary_texts)
+        retriever.docstore.mset(list(zip(doc_ids, texts)))
+        return retriever, full_content
 
 
 def process_file(file_input, session_id):
@@ -274,13 +377,13 @@ def process_file(file_input, session_id):
     except:
         print("Fail to read the pdf!")
         del vectorstores[session_id]
-        return
+        return gr.Textbox.update(interactive=False)
     else:
-        vectorstore = read_pdf_to_vec(pdf_path)
+        vectorstore = pdf_rag(pdf_path)
         vectorstores[session_id] = vectorstore
         print("Success to read the pdf!")
         print(vectorstores[session_id])
-        return
+        return gr.Textbox.update(interactive=True)
 
 ###*************************************************
 ### Section 1 Gradio App Interface
@@ -305,8 +408,9 @@ with gr.Blocks() as demo:
 
     with gr.Row():
         file_input = gr.File(label="PDF", file_count="single", scale=1)
-        message = gr.Textbox(show_label=False, placeholder="Enter your prompt and press enter", visible=True, scale=2)
-    
+        with gr.Column():
+            message = gr.Textbox(show_label=False, placeholder="Enter your prompt and press enter", visible=True, scale=2, interactive=False)
+            use_history = gr.Checkbox(label="use history", info="chat with state or not?")
     state = gr.State()
     
     with gr.Accordion("Parameters", open=False, visible=True) as parameter_row:
@@ -338,17 +442,17 @@ with gr.Blocks() as demo:
             with gr.Column():
                 with gr.Row():
                     top_p = gr.Slider(
-                                        label="Top-p (More Balance)",
-                                        value=0.98,
-                                        minimum=0.0,
-                                        maximum=1,
-                                        step=0.01,
-                                        interactive=True,
-                                        info=(
-                                            "Sample from the smallest possible set of tokens whose cumulative probability "
-                                            "exceeds top_p. Set to 1 to disable and sample from all tokens."
-                                        ),
-                        )
+                        label="Top-p (More Balance)",
+                        value=0.98,
+                        minimum=0.0,
+                        maximum=1,
+                        step=0.01,
+                        interactive=True,
+                        info=(
+                            "Sample from the smallest possible set of tokens whose cumulative probability "
+                            "exceeds top_p. Set to 1 to disable and sample from all tokens."
+                        ),
+                    )
             
             # with gr.Column():
             #     with gr.Row():
@@ -384,38 +488,45 @@ with gr.Blocks() as demo:
                         label="Max output tokens",
                         info=" sets the limit on the number of words in the Language Model's response."
                     )
-
-    message.submit(predict, inputs=[session_id, message, chatbot, temperature, top_k, top_p, max_output_tokens,repetition_penalty ], outputs=[message, chatbot], queue=True) #repetition_penalty,temperature, top_p, penalty_alpha, top_k, max_output_tokens,base_model_input, conversation_style
+    message.submit(
+        predict, 
+        inputs=[
+            session_id, message, chatbot, 
+            temperature, top_k, top_p, 
+            max_output_tokens, repetition_penalty,
+            use_history
+        ], 
+        outputs=[message, chatbot],
+        queue=True
+    ) 
     file_input.change(
         process_file, 
         inputs=[file_input, session_id], 
-        outputs=None, 
+        outputs=message, 
     )
     
     gr.HTML(
-                """
-                <div class="footer">
-                    <p style="align-items: center; margin-bottom: 7px;" >
-                    </p>
-                    <div style="text-align: Center; font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em;">
-                        <div style="
-                            display: inline-flex; 
-                            gap: 0.6rem; 
-                            font-size: 1.0rem;
-                            justify-content: center;
-                            margin-bottom: 10px;
-                            ">
-                        <p style="align-items: center; margin-bottom: 7px;" >
-                            Hallooo (it's me!! (Tran Nhiem) Rick) i'm in charge of this development: I'm actively working to improve its accuracy, performance, & reliability. Your valuable feedback and suggestions are very valuable & will help TO enhance the Future Development.
-                            <a href="https://docs.google.com/spreadsheets/d/1ToK4CBd9-AU0bVKV6c0A5lNaV4FUinsosJxETn1zo3g/edit?usp=sharing" style="text-decoration: underline;" target="_blank"> 🙌  Share your feedback here </a> ; 
-                            <a href="https://docs.google.com/presentation/d/1JCiF13WNijo58f9xFXFVQz_MN7BgjhDtGPmOuvrwbhw/edit?usp=sharing" style="text-decoration: underline;" target="_blank"> 🙌 or upload screenshot images here</a> 
-                        </p>
-                       
-                        </div>
-                    
-     
-        
-                """)
+        """
+        <div class="footer">
+            <p style="align-items: center; margin-bottom: 7px;" >
+            </p>
+            <div style="text-align: Center; font-size: 1.5em; font-weight: bold; margin-bottom: 0.5em;">
+                <div style="
+                    display: inline-flex; 
+                    gap: 0.6rem; 
+                    font-size: 1.0rem;
+                    justify-content: center;
+                    margin-bottom: 10px;
+                    ">
+                <p style="align-items: center; margin-bottom: 7px;" >
+                    Hallooo (it's me!! (Tran Nhiem) Rick) i'm in charge of this development: I'm actively working to improve its accuracy, performance, & reliability. Your valuable feedback and suggestions are very valuable & will help TO enhance the Future Development.
+                    <a href="https://docs.google.com/spreadsheets/d/1ToK4CBd9-AU0bVKV6c0A5lNaV4FUinsosJxETn1zo3g/edit?usp=sharing" style="text-decoration: underline;" target="_blank"> 🙌  Share your feedback here </a> ; 
+                    <a href="https://docs.google.com/presentation/d/1JCiF13WNijo58f9xFXFVQz_MN7BgjhDtGPmOuvrwbhw/edit?usp=sharing" style="text-decoration: underline;" target="_blank"> 🙌 or upload screenshot images here</a> 
+                </p>
+                
+                </div>
+        """
+    )
 
 
 demo.queue(max_size=128, concurrency_count=20)
