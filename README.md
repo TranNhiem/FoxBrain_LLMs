@@ -7,7 +7,7 @@
 </h1>
 
 <div align="center">
-     <img width="auto" height="400px" src="./Images/Foxbrain_roadmap.png"/>
+     <img width="auto" height="400px" src="./Images/FoxBrain_Roadmap_update.png"/>
 </div>
 
 
