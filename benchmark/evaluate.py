@@ -63,11 +63,28 @@ class Task:
         # create self._gold_dict
         raise NotImplementedError
     
-    def _get_response_dict(self, list_of_response):
+    def _get_response_dict(self, list_of_data):
         response_dict = {}
-        for data in list_of_response:
+        for data in list_of_data:
             response_dict[str(data['id'])] = data['response']
         return response_dict
+
+    def _get_references_dict(self, list_of_data):
+        references_dict = {}
+        for data in list_of_data:
+            references_dict[str(data['id'])] = data['references'][0]
+        return references_dict
+    
+    def _get_querys_dict(self, list_of_data, beginning=None, ending=None):
+        querys_dict = {}
+        for data in list_of_data:
+            query = data['query']
+            if beginning != None:
+                query = query.split(beginning)[1]
+            if ending != None:
+                query = query.split(ending)[0]
+            querys_dict[str(data['id'])] = query
+        return querys_dict
 
     def evaluate(self, list_of_response: List[Dict]) -> Dict:
         # return metrics
@@ -88,13 +105,13 @@ class ChoiceTask(Task):
 
         for idx in self._gold_dict.keys():
             choice = self._extract_choice(
-                response_dict[idx], 
-                choices=self._choices_dict[idx] if hasattr(self, '_choices_dict') else None
+                response_dict[str(idx)], 
+                choices=self._choices_dict[str(idx)] if hasattr(self, '_choices_dict') else None
             )
-            correct_list.append(1 if choice == gold_dict[idx] else 0)
+            correct_list.append(1 if choice == gold_dict[str(idx)] else 0)
         return {
             'accuracy': np.mean(correct_list)
-        }
+        }, correct_list
 
 
 class MultipleChoiceTask(ChoiceTask):
@@ -181,24 +198,24 @@ class QuestionAnsweringTask(Task):
             metrics[m_name] = np.mean(vals)
         return metrics
 
-
 class SummaryTask(Task):
-    _metric_fns = {"Rouge-1": get_rouge_tc_function("rouge1"),
-                   "Rouge-2": get_rouge_tc_function("rouge2"),
-                   "Rouge-L": get_rouge_tc_function("rougeL")}
+    _metric_fns = {
+        "Rouge-1": get_rouge_tc_function("rouge1"),
+        "Rouge-2": get_rouge_tc_function("rouge2"),
+        "Rouge-L": get_rouge_tc_function("rougeL")
+    }
 
     def evaluate(self, list_of_response: List[Dict]) -> Dict:
-        gold_dict= self._gold_dict
+        gold_dict = self._gold_dict
         response_dict = self._get_response_dict(list_of_response)
-
         metrics = {}
         for m_name, metric_fn in self._metric_fns.items():
             vals = []
-            for idx in self._gold_dict.keys():
+            for idx in gold_dict.keys():
                 vals.append(metric_fn(gold_dict[idx], response_dict[idx]))
             metrics[m_name] = np.mean(vals)
         lengths = []
-        for idx in self._gold_dict.keys():
+        for idx in gold_dict.keys():
             lengths.append(len(response_dict[idx]))
         metrics['length'] = np.mean(lengths)
         return metrics
@@ -365,7 +382,6 @@ class DRCDTask(QuestionAnsweringTask):
             else:
                 self._gold_dict[str(idx)] = data[idx]['references']
 
-
 class FGCTask(QuestionAnsweringTask):
     def _prepare_data(self, dir, n):
         data = json.load(open(f'{dir}/preprocessed_FGC_official_final.json'))
@@ -373,20 +389,19 @@ class FGCTask(QuestionAnsweringTask):
         for idx in data:
             self._gold_dict[str(idx)] = data[idx]['references']
 
-
-EVALUATION_ITEMS = [
-    ['XSum_TC_5k', XSumTCTask('./data/XSum_TC_5k/', 5000)], 
-    ['DRCD', DRCDTask('./data/DRCD_Test/', 3493)], 
-    ['TTQA', TTQATask('./data/TTQA/', 103)],
-    ['IMDB_TC', IMDBTCTask('./data/IMDB_TC/', 5000)],
-    ['PenguinsInTable_TC', PenguinsInTableTCTask('./data/PenguinsInTable_TC', 0)],
-    ['CH2EN', CH2EN('./data/COCT', 100)],
-    ['EN2CH', EN2CH('./data/COCT', 100)],
-    ['CNN', CNNTask('./data/CNN', 162)],
-    *[[f'TMMLU_{subject}', TMMLUTask(f'./data/TMMLU/subjects/{subject}/', 0)]
-      for subject in os.listdir(f'./data/TMMLU/subjects/')]
-    #['FGC', FGCTask('./data/FGC_Test')],
-]
+# EVALUATION_ITEMS = [
+#     ['XSum_TC_5k', XSumTCTask('./data/XSum_TC_5k/', 5000)], 
+#     ['DRCD', DRCDTask('./data/DRCD_Test/', 3493)], 
+#     ['TTQA', TTQATask('./data/TTQA/', 103)],
+#     ['IMDB_TC', IMDBTCTask('./data/IMDB_TC/', 5000)],
+#     ['PenguinsInTable_TC', PenguinsInTableTCTask('./data/PenguinsInTable_TC', 0)],
+#     ['CH2EN', CH2EN('./data/COCT', 100)],
+#     ['EN2CH', EN2CH('./data/COCT', 100)],
+#     ['CNN', CNNTask('./data/CNN', 162)],
+#     *[[f'TMMLU_{subject}', TMMLUTask(f'./data/TMMLU/subjects/{subject}/', 0)]
+#       for subject in os.listdir(f'./data/TMMLU/subjects/')]
+#     # ['FGC', FGCTask('./data/FGC_Test')],
+# ]
 
 
 def evaluate_all(result_path):
@@ -505,6 +520,7 @@ def get_overall_performace(model_list, tasks):
                     values.append(rouge)
                 # select translation task
                 elif '2' in task:
+                    # print("evalue translate", task)
                     values.append(metrics[task]['Bleu'])
                 else:
                     for v_name in metrics[task]:
@@ -515,13 +531,7 @@ def get_overall_performace(model_list, tasks):
             v = v*100
             v = f'{v:.2f}%'
             string_values.append(v)
-        model_name_dict = {f'v{i}': f'FoxBrain ver.{i}' for i in range(20)}
-        for i in range(20):
-            model_name_dict[f'twllama_v{i}'] = f'TaiwanLlama ver.{i}'
-        model_name_dict['model_7c_chat'] = 'MediaTek'
-        model_name_dict['gpt3.5'] = 'ChatGPT'
-
-        data_dict[model_name_dict[model]] = string_values
+        data_dict[model] = string_values
     df = pd.DataFrame(data_dict, index=(tasks+['avg'])).T
     print(df)
     if not os.path.exists('./results/csv/'):
@@ -535,10 +545,11 @@ def get_overall_performace(model_list, tasks):
 # model : 'v0','v1','v2','v3','v4','v5','twllama_v0','twllama_v1','twllama_v2','model_7c_chat','gpt3.5'
 # tasks : 'DRCD','XSum_TC_5k', 'CNN', 'EN2CH', 'CH2EN', 'PenguinsInTable_TC','TMMLU_Avg','TTQA','IMDB_TC'
 tasks = ['DRCD','XSum_TC_5k', 'CNN', 'EN2CH', 'CH2EN', 'PenguinsInTable_TC','TMMLU_Avg','TTQA','IMDB_TC']
-model_list = ['v5','v8','v9','v10','v11']#,'model_7c_chat','gpt3.5']
+model_list = ['breeze_7b','yi_6b', 'FoxBrain_yi_6b']#,'model_7c_chat','gpt3.5']
+#model_list=["llama3_8b_instruct_ctrans" ]
 get_overall_performace(model_list,tasks)
 
 
 #get_overall_performace(['v4', 'twllama_v1','gpt3.5'], tasks,tasks_name_dict)
 #evaluate_summary(['v4', 'twllama_v1', 'gpt3.5']) # ,'twllama_v1'
-#evaluate_translation(['v4', 'twllama_v1', 'gpt3.5'])
+# evaluate_translation(['v4', 'twllama_v1', 'gpt3.5'])
