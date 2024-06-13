@@ -105,7 +105,7 @@ url = "http://40.84.133.133:8889/api/generate"
 
 text_output = ""
 temperature_=0.7
-typical_p=0.5
+typical_p_=0.5
 
 while text_output == "":
     payload = {
