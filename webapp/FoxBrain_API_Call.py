@@ -100,29 +100,36 @@ input_prompt = apply_chat_template(messages)
 
 
 url = "http://40.84.133.133:8889/api/generate"
-payload = {
-    "model": "FoxBrain_8B_202406",
-    "prompt": input_prompt,
-    "stream": True, 
-    "options": {
-        # "seed": 123,
-        "temperature": 0.7, ## 
-        #"top_k": 50,
-        # "top_p": 0.7,
-        # # "tfs_z": 0.5,
-        "typical_p": 0.5,
-        # # "repeat_last_n": 33,
-        # # "repeat_penalty": 1.2,
-        # "presence_penalty": 0.4,
-        # "frequency_penalty": 0.7,
-    }
-}
+
 
 
 text_output = ""
+temperature_=0.7
+typical_p=0.5
+
 while text_output == "":
+    payload = {
+        "model": "FoxBrain_8B_202406",
+        "prompt": input_prompt,
+        "stream": True, 
+        "options": {
+            # "seed": 123,
+            "temperature": 0.7, ## 
+            #"top_k": 50,
+            # "top_p": 0.7,
+            # # "tfs_z": 0.5,
+            "typical_p": 0.5,
+            # # "repeat_last_n": 33,
+            # # "repeat_penalty": 1.2,
+            # "presence_penalty": 0.4,
+            # "frequency_penalty": 0.7,
+        }
+    }
+   
     response = requests.post(url, data=json.dumps(payload), headers={"Content-Type": "application/json"}, stream=True)
 
     respone_output=print_response(response)
-    text_output += respone_output
+    text_output = respone_output
+    temperature_ = random.uniform(0.6, 1.0) 
+    typical_p_= random.uniform(0.4, 1.0)
 print("*************************************************************")
