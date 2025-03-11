@@ -52,7 +52,7 @@ We will soon provide a number of model checkpoints that we trained. Please find 
 
 ## How can you help
 
-+ Would you like to contribute to the project? Please refer to the Contribute_guideline for instructions on how to get started and collaborate on this project together.
++ Would you like to contribute to the project? please reach out to Nhiem (rick.tvn@foxconn.com).
 
 ```
 @misc{FoxBrain,
