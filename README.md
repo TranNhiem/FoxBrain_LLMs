@@ -54,9 +54,10 @@ We provide a number of model checkpoints that we trained. Please find them on Hu
 + Would you like to contribute to the project? Please refer to the Contribute_guideline for instructions on how to get started and collaborate on this project together.
 
 ```
-@misc{FoxBrainLLM,
-    author={HHRAI},
-    title={FoxBrain Large-Scale Finetuning of Language Models on Traditional Chinese},
+@misc{FoxBrain,
+    author={Tran Nhiem, HHRAI},
+    title={FoxBrain Building, Extending & Customizing Foundation Models}
+},
     year={2023},
     url={https://github.com/TranNhiem/FoxBrain_LLMs},
 }
