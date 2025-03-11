@@ -1,6 +1,3 @@
-# FoxBrain_LLMs
-
-
 <h1 align="center">
   <span> FoxBrain - Advancing Foundation Model</span>
 </h1>
