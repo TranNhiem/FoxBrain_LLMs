@@ -19,7 +19,8 @@
 + [Comming_soon] We release Yi 6B, 34B fine-tuning on 200k Zh_Chinese and English pair Mix Instruction 🔥
 -->
 
-We provide a number of model checkpoints that we trained. Please find them on Hugging Face [here](https://huggingface.co/trannhiem). Here are some quick links to the checkpoints that are finetuned from LLaMa 2:
+We will soon provide a number of model checkpoints that we trained. Please find them on Hugging Face [here](https://huggingface.co/FoxconnAI). 
+
 
 | **Model**         |                   **Link**                                                            | 
 |--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
