@@ -6,6 +6,8 @@
      <img width="auto" height="400px" src="./Images/FoxBrain_continuous_learning_strategy.png"/>
 </div>
 
+# Insided of How Foxconn HonHai Research Institute team Building FoxBrain will present detailed at:
+[NVIDIA GTC 2025  “From Open Source to Frontier AI: Build, Customize, and Extend Foundation Models” on March 20.](https://www.nvidia.com/gtc/session-catalog/?search=foxconn&tab.catalogallsessionstab=16566177511100015Kus&search=foxconn#/session/1734052072050001Ux0A)
 
 ## 💡 Get help - [Q&A](https://github.com/TranNhiem/FoxBrain_LLMs/discussions) or [Discord 💬](https://discord.gg/z7epQGBR7q)
 <!--
