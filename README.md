@@ -6,9 +6,17 @@
      <img width="auto" height="400px" src="./Images/FoxBrain_continuous_learning_strategy.png"/>
 </div>
 
-# 🚀 *Upcoming Presentation at NVIDIA GTC 2025**  
+
 Discover how the FoxBrain team from Foxconn's Research Institute is building the next-generation AI foundation model. We'll share detailed insights 
-[NVIDIA GTC 2025  “From Open Source to Frontier AI: Build, Customize, and Extend Foundation Models” on March 20.](https://www.nvidia.com/gtc/session-catalog/?search=foxconn&tab.catalogallsessionstab=16566177511100015Kus&search=foxconn#/session/1734052072050001Ux0A)
+
+
+## 🚀 Highlight: Join FoxBrain at NVIDIA GTC 2025!
+
+Discover how FoxBrain is advancing the state-of-the-art in Foundation Models. Join us for an in-depth presentation:
+
+[**"From Open Source to Frontier AI: Build, Customize, and Extend Foundation Models"**](https://www.nvidia.com/gtc/session-catalog/?search=foxconn&tab.catalogallsessionstab=16566177511100015Kus&search=foxconn#/session/1734052072050001Ux0A)
+📅 **Date:** March 20, 2025
+
 
 ## 💡 Get help - [Q&A](https://github.com/TranNhiem/FoxBrain_LLMs/discussions) or [Discord 💬](https://discord.gg/z7epQGBR7q)
 <!--
@@ -52,16 +60,18 @@ We will soon provide a number of model checkpoints that we trained. Please find 
 
 ## How can you help
 
-+ Would you like to contribute to the project? please reach out to Nhiem (rick.tvn@foxconn.com).
+Stay tuned and follow our progress or contribute directly on GitHub!
 
-```
+Reach out to the FoxBrain team member Rick at rick.tvn@foxconn.com.
+
+```bibtex
 @misc{FoxBrain,
     author={Tran Nhiem, HHRAI},
-    title={FoxBrain Building, Extending & Customizing Foundation Models}
-},
+    title={FoxBrain Building, Extending \& Customizing Foundation Models},
     year={2023},
-    url={https://github.com/TranNhiem/FoxBrain_LLMs},
+    url={https://github.com/TranNhiem/FoxBrain_LLMs}
 }
 ```
+
 
 
