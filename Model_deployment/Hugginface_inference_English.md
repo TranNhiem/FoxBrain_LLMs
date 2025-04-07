@@ -6,6 +6,8 @@ license: llama3.1
 
 This guide provides instructions for deploying and using the FoxBrain model using Huggingface's Transformers library. The FoxBrain model is based on LLama 3.1 70B and can be deployed using various methods depending on your use case.
 
+> **Note**: FoxBrain models are built on Llama 3.1 and include the chat template directly in the tokenizer configuration. When loading the model with Huggingface, the correct chat template is automatically available, simplifying deployment and ensuring correct formatting of inputs.
+
 ## Table of Contents
 
 - [Installation](#installation)
@@ -148,8 +150,13 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True
 )
 
-# Set up the chat template if needed
+# Llama 3.1-based models like FoxBrain typically have the chat template included
+# We can access it directly from the tokenizer
+print(f"Tokenizer has chat template: {tokenizer.chat_template is not None}")
+
+# Set up a fallback chat template only if needed (should not be necessary for FoxBrain)
 if tokenizer.chat_template is None:
+    print("Warning: Chat template not found in tokenizer, using fallback template")
     tokenizer.chat_template = """
     {% if messages[0]['role'] == 'system' %}
     {% set loop_messages = messages[1:] %}
@@ -247,6 +254,9 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map=device_map,
     trust_remote_code=True
 )
+
+# Check if chat template is available (should be for FoxBrain)
+print(f"Tokenizer has chat template: {tokenizer.chat_template is not None}")
 
 # Generate response function (similar to the previous example)
 def generate_with_accelerate(prompt, system_prompt=DEFAULT_SYSTEM_PROMPT):
