@@ -139,6 +139,18 @@ The simplest approach for direct Python integration. Best for:
 ```python
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers import StoppingCriteria, StoppingCriteriaList
+
+# Define custom stopping criteria for the tokens that signal the end of generation
+class StopOnTokens(StoppingCriteria):
+    def __init__(self, stop_token_ids):
+        self.stop_token_ids = stop_token_ids
+    
+    def __call__(self, input_ids, scores, **kwargs):
+        for stop_id in self.stop_token_ids:
+            if input_ids[0][-1] == stop_id:
+                return True
+        return False
 
 # Load model and tokenizer
 model_path = "/path/to/FoxBrain_model"
@@ -174,6 +186,11 @@ if tokenizer.chat_template is None:
     <s>assistant: 
     """
 
+# Get token IDs for stop sequences
+stop_words = ['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>']
+stop_token_ids = [tokenizer.encode(word, add_special_tokens=False)[-1] for word in stop_words]
+stopping_criteria = StoppingCriteriaList([StopOnTokens(stop_token_ids)])
+
 # Create a text-generation pipeline
 gen_pipeline = pipeline(
     "text-generation",
@@ -183,7 +200,8 @@ gen_pipeline = pipeline(
     temperature=0.7,
     top_p=0.9,
     repetition_penalty=1.1,
-    do_sample=True
+    do_sample=True,
+    stopping_criteria=stopping_criteria
 )
 
 # Function to generate responses
@@ -258,6 +276,10 @@ model = AutoModelForCausalLM.from_pretrained(
 # Check if chat template is available (should be for FoxBrain)
 print(f"Tokenizer has chat template: {tokenizer.chat_template is not None}")
 
+# Get token IDs for stop sequences
+stop_words = ['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>']
+stop_token_ids = [tokenizer.encode(word, add_special_tokens=False)[-1] for word in stop_words]
+
 # Generate response function (similar to the previous example)
 def generate_with_accelerate(prompt, system_prompt=DEFAULT_SYSTEM_PROMPT):
     messages = []
@@ -288,7 +310,9 @@ def generate_with_accelerate(prompt, system_prompt=DEFAULT_SYSTEM_PROMPT):
         top_p=0.9,
         repetition_penalty=1.1,
         do_sample=True,
-        pad_token_id=tokenizer.eos_token_id
+        pad_token_id=tokenizer.eos_token_id,
+        # Add stop tokens directly to generate method
+        eos_token_id=stop_token_ids
     )
     
     # Decode and return only the new tokens
