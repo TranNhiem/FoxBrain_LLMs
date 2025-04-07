@@ -292,6 +292,8 @@ python -m vllm.entrypoints.openai.api_server \
     --chat-template "Path to llama31_chattemplate.jinja"
 ```
 
+> **Note**: The `--host 0.0.0.0` parameter makes the server accessible from any IP address. For security in production environments, you might want to bind to a specific IP address. The `--port` parameter (8000 in this example) determines which port the server listens on.
+
 ### Client Usage
 
 Once the server is running, use the OpenAI client to interact with it:
@@ -301,13 +303,13 @@ from openai import OpenAI
 
 # Configure the client to use your VLLM server
 client = OpenAI(
-    base_url="http://localhost:8000/v1",  # Match your VLLM port
+    base_url="http://localhost:8000/v1",  # Match your server's IP/hostname and port
     api_key="dummy-key"  # The API key doesn't matter for local VLLM servers
 )
 
 # Send a request
 response = client.chat.completions.create(
-    model="/path/to/FoxBrain_model",
+    model="Path to FoxBrain model checkpoint",
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": "What is the capital of France?"}
@@ -319,6 +321,8 @@ response = client.chat.completions.create(
 # Process the response
 answer = response.choices[0].message.content
 ```
+
+> **Important**: The `base_url` in your client configuration must match the server's IP address and port. If your server is running on a remote machine with IP 192.168.1.100 and port 8000, your base_url should be `http://192.168.1.100:8000/v1`. For local testing, use `localhost` or `127.0.0.1`.
 
 ---
 
@@ -346,6 +350,8 @@ python -m vllm.entrypoints.openai.api_server \
     --tool-call-parser llama3_json \
     --chat-template "Path to llama31_chattemplate.jinja"
 ```
+
+> **Note**: When deploying across different machines, replace `--host 0.0.0.0` with your server's IP address if you want to restrict access. Then update all client `base_url` values to point to this IP address (e.g., `http://server-ip-address:8000/v1`).
 
 ### Tested FoxBrain Deployment Example
 
@@ -385,9 +391,14 @@ import re
 
 # Configure client to use your VLLM server
 client = OpenAI(
-    base_url="http://127.0.0.1:8883/v1",  # Match your VLLM port
+    base_url="http://127.0.0.1:8883/v1",  # Match your server's IP/hostname and port
     api_key="your-api-key"  # Match your API key
 )
+
+> **Important**: When deploying across machines:
+> - For local testing on the same machine: use `base_url="http://127.0.0.1:PORT/v1"` or `base_url="http://localhost:PORT/v1"`
+> - For connecting from another machine: use `base_url="http://SERVER_IP:PORT/v1"` where SERVER_IP is the IP address of the server running VLLM
+> - Always ensure the port number matches the one specified in your VLLM server command (8883 in the example above)
 
 # Define tool functions
 def get_weather(location: str, unit: str = "celsius"):
@@ -648,22 +659,4 @@ For optimal performance with VLLM, consider these tips based on your deployment 
        --dtype bfloat16
    ```
 
-4. **Batch Size**: Adjust the `--max-model-len` (default -16384 can be set to max context can be 128k) parameter to control context length and `--gpu-memory-utilization` (default 0.97) to control memory usage.
-
-5. **Continuous Batching**: VLLM uses continuous batching by default, which is more efficient than traditional batching. You can adjust the maximum batch size with `--max-num-batched-tokens`.
-
----
-
-## Troubleshooting
-
-Common issues and solutions:
-
-1. **Out of Memory**: Reduce tensor parallel size, use quantization, or try a smaller model.
-
-2. **Slow Inference**: Check GPU utilization, ensure enough CPU cores for preprocessing, and consider using a higher quantization precision.
-
-3. **Invalid JSON from Function Calls**: This can happen with complex prompts. Add parsing and error handling in your application to handle and correct malformed JSON.
-
-4. **Context Length Issues**: If you're seeing truncated outputs, increase the `--max-model-len` parameter when starting the server.
-
-For more information, refer to the [VLLM documentation](https://vllm.readthedocs.io/).
+4. **Batch Size**: Adjust the `--max-model-len`
