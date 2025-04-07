@@ -138,10 +138,14 @@ The default system prompt used for FoxBrain (can be customized based on your nee
 
 ## Chat Template
 
-The FoxBrain model requires proper message formatting using a Llama 3.1 compatible chat template. This template is included in the repository at `/FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja` and should be specified when starting the VLLM server:
+The FoxBrain model requires proper message formatting using a Llama 3.1 compatible chat template. The template file `llama31_chattemplate.jinja` is essential for correct model operation:
+
+1. Download the chat template file from the repository
+2. Save it to an accessible location on your system
+3. Specify its path when starting the VLLM server:
 
 ```bash
---chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
+--chat-template "Path to llama31_chattemplate.jinja"
 ```
 
 The chat template is crucial for:
@@ -152,6 +156,11 @@ The chat template is crucial for:
 When using the Direct Python API approach, the template is applied automatically with the tokenizer:
 
 ```python
+# Make sure to initialize the tokenizer with the same template
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+# If needed, specify the chat template path
+# tokenizer.chat_template = open("Path to llama31_chattemplate.jinja").read()
+
 formatted_prompt = tokenizer.apply_chat_template(
     messages,
     tokenize=False,
@@ -165,7 +174,7 @@ formatted_prompt = tokenizer.apply_chat_template(
 from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 
-model_id="Path to Model Weight"
+model_id="Path to FoxBrain model checkpoint"
 number_gpus = 2 ## for BF16 1 GPU for FP8 (A100 or H100 80GB Vram)
 # Sampling parameters
 tokenizer = AutoTokenizer.from_pretrained(model_id_tokenizer)
@@ -275,12 +284,12 @@ Start the VLLM OpenAI-compatible server with:
 
 ```bash
 python -m vllm.entrypoints.openai.api_server \
-    --model /path/to/FoxBrain_model \
+    --model "Path to FoxBrain model checkpoint" \
     --host 0.0.0.0 \
     --port 8000 \
     --tensor-parallel-size 2 \
     --dtype bfloat16 \
-    --chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
+    --chat-template "Path to llama31_chattemplate.jinja"
 ```
 
 ### Client Usage
@@ -329,13 +338,13 @@ Enable function calling by adding specific flags when starting the server:
 
 ```bash
 python -m vllm.entrypoints.openai.api_server \
-    --model /path/to/FoxBrain_model \
+    --model "Path to FoxBrain model checkpoint" \
     --host 0.0.0.0 \
     --port 8000 \
     --tensor-parallel-size 2 \
-    --enable-auto-tool-choice \  # Enable tool choice
-    --tool-call-parser llama3_json \  # Use llama3 JSON format
-    --chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
+    --enable-auto-tool-choice \
+    --tool-call-parser llama3_json \
+    --chat-template "Path to llama31_chattemplate.jinja"
 ```
 
 ### Tested FoxBrain Deployment Example
@@ -343,7 +352,16 @@ python -m vllm.entrypoints.openai.api_server \
 The following command has been tested and verified to work efficiently with the FoxBrain model for function calling:
 
 ```bash
-vllm serve /LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K --dtype auto --api-key token-abc123 --port 8883 --enable-auto-tool-choice --tool-call-parser llama3_json --chat-template /LLM_32T/pretrained_weights/llama31_chattemplate.jinja --max-model-len 32768 --tensor-parallel-size 2 --gpu-memory-utilization 0.97
+vllm serve "Path to FoxBrain model checkpoint" \
+    --dtype auto \
+    --api-key "your-api-key" \
+    --port 8883 \
+    --enable-auto-tool-choice \
+    --tool-call-parser llama3_json \
+    --chat-template "Path to llama31_chattemplate.jinja" \
+    --max-model-len 32768 \
+    --tensor-parallel-size 2 \
+    --gpu-memory-utilization 0.97
 ```
 
 This command includes:
@@ -356,6 +374,8 @@ This command includes:
 
 The example Python script `foxbrain_function_calling_example.py` demonstrates how to connect to this VLLM server and use function calling capabilities with FoxBrain. The script includes implementations for weather lookup and calculator functions, as well as robust JSON parsing for handling function call responses.
 
+> **Important**: The `llama31_chattemplate.jinja` file is critical for proper function calling with the FoxBrain model. Make sure to download this template file from the repository and specify its correct path in your VLLM command. Without the proper chat template, the model may not properly understand or generate function calls.
+
 Here's a key portion of the client code from this example:
 
 ```python
@@ -366,7 +386,7 @@ import re
 # Configure client to use your VLLM server
 client = OpenAI(
     base_url="http://127.0.0.1:8883/v1",  # Match your VLLM port
-    api_key="token-abc123"  # Match your API key
+    api_key="your-api-key"  # Match your API key
 )
 
 # Define tool functions
@@ -422,7 +442,7 @@ def test_function_calling(question):
     
     # Make completion request with tools
     response = client.chat.completions.create(
-        model="/LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K",
+        model="Path to FoxBrain model checkpoint",  # Your model path
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question}
@@ -450,7 +470,7 @@ def test_function_calling(question):
             
             # Send the function result back to the model
             follow_up_response = client.chat.completions.create(
-                model="/LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K",
+                model="Path to FoxBrain model checkpoint",  # Your model path
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": question},
@@ -491,7 +511,7 @@ tools = [
 
 # Request with tools
 response = client.chat.completions.create(
-    model="/path/to/FoxBrain_model",
+    model="Path to FoxBrain model checkpoint",
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": "What's the weather in Taipei?"}
@@ -515,7 +535,7 @@ if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
         
         # Send the result back to the model
         follow_up = client.chat.completions.create(
-            model="/path/to/FoxBrain_model",
+            model="Path to FoxBrain model checkpoint",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "What's the weather in Taipei?"},
