@@ -412,7 +412,8 @@ output = query_api({
         "temperature": 0.7,
         "top_p": 0.9,
         "repetition_penalty": 1.1,
-        "do_sample": True
+        "do_sample": True,
+        "stop": ["<|eot_id|>", "<|end_of_text|>", "<|end_header_id|>"]
     }
 })
 
