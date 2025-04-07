@@ -341,7 +341,8 @@ text-generation-launcher \
     --max-total-tokens 4096 \
     --max-input-length 2048 \
     --max-batch-prefill-tokens 4096 \
-    --trust-remote-code
+    --trust-remote-code \
+    --stopping-criteria '<|eot_id|>','<|end_of_text|>','<|end_header_id|>'
 ```
 
 #### Client Usage
@@ -368,7 +369,8 @@ def generate_with_tgi(prompt, system_prompt=DEFAULT_SYSTEM_PROMPT):
         temperature=0.7,
         top_p=0.9,
         repetition_penalty=1.1,
-        do_sample=True
+        do_sample=True,
+        stop_sequences=["<|eot_id|>", "<|end_of_text|>", "<|end_header_id|>"]
     )
     
     return response.choices[0].message.content
