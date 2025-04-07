@@ -168,23 +168,41 @@ print(f"Tokenizer has chat template: {tokenizer.chat_template is not None}")
 
 # Set up a fallback chat template only if needed (should not be necessary for FoxBrain)
 if tokenizer.chat_template is None:
-    print("Warning: Chat template not found in tokenizer, using fallback template")
-    tokenizer.chat_template = """
-    {% if messages[0]['role'] == 'system' %}
-    {% set loop_messages = messages[1:] %}
-    {% set system_message = messages[0]['content'] %}
-    {% else %}
-    {% set loop_messages = messages %}
-    {% set system_message = "" %}
-    {% endif %}
-    {% if system_message != "" %}
-    <s>{{ system_message }}</s>
-    {% endif %}
-    {% for message in loop_messages %}
-    <s>{{ message['role'] }}: {{ message['content'] }}</s>
-    {% endfor %}
-    <s>assistant: 
-    """
+    print("Warning: Chat template not found in tokenizer, using FoxBrain chat formatting")
+    # Define custom chat formatting function instead of using a template
+    def apply_chat_template(messages):
+        formatted_chat = ""
+
+        eos_token = "<|eot_id|>"  
+        if messages and messages[0]["role"] == "system":
+            # Update the content of the first system message
+            previous_content = messages[0]["content"]
+            messages[0]["content"] = "<|begin_of_text|>system<|start_header_id|>\n" + previous_content + eos_token
+        elif messages and messages[0]["role"] != "system":
+            # Insert a new system message at the beginning if there isn't one
+            messages.insert(0, {
+                "role": "system",
+                "content": "You are FoxBrain assistant"
+            })
+
+        eos_token_ = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>"
+        # Loop through the messages to apply the template
+        for message in messages:
+            role = message['role']
+            if role == "user":
+                content = "<|start_header_id|>user<|end_header_id|>\n\n" + message['content'] + eos_token_
+                formatted_chat += f'{content}'
+            elif role == "assistant":
+                content = message['content'] + eos_token + "\n"
+                formatted_chat += f'\n{content}'
+            else:
+                content = message['content']
+                formatted_chat += f'{content}'
+
+        return formatted_chat
+    
+    # Override the tokenizer's apply_chat_template method with our custom function
+    tokenizer.apply_chat_template = lambda messages, tokenize=False, add_generation_prompt=False, **kwargs: apply_chat_template(messages)
 
 # Get token IDs for stop sequences
 stop_words = ['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>']
