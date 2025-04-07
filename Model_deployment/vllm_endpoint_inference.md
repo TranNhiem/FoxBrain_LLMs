@@ -181,29 +181,56 @@ print(f"Answer: {answer}")
 print(f"Steps: {steps}")
 print(f"Reflection: {reflection}")
 
-## VLLM Inference Implementation
+# VLLM Inference Implementation
 
-VLLM can be used in two main ways:
-1. Direct Python API for model inference
-2. OpenAI-compatible API server
+VLLM offers three primary deployment methods for running your FoxBrain model. Each approach has different advantages depending on your use case:
 
-### Direct Python API Usage
+## 1. Direct Python API (Local Implementation)
 
-The code example above demonstrates how to use VLLM's Python API directly. This is useful for integrating with your Python applications or for running batch inference.
+The simplest approach is to use VLLM's Python API directly within your applications. This method provides the most control and is ideal for:
+- Custom Python applications
+- Backend services
+- Batch processing
+- Research and experimentation
 
-Key components:
-- Initialize the `LLM` class with model path and hardware configuration
-- Define a helper function to format inputs and run inference
-- Process the model's output using the helper functions
+The code example above demonstrates this approach. Key components include:
 
-### OpenAI-compatible API Server
+- **Model Initialization**: Load the model with your specific hardware configuration
+- **Input Formatting**: Properly format inputs using the chat template
+- **Inference**: Generate completions with your specified parameters
+- **Response Parsing**: Extract structured information from the model output
 
-VLLM also provides an OpenAI-compatible API server that allows you to use the OpenAI client libraries to interact with your local models. This is especially useful for applications already built with OpenAI's API.
+### Code Example Walkthrough
 
-Here's how to set up and use the VLLM OpenAI-compatible server:
+```python
+# Initialize the model with hardware settings
+llm = LLM(
+    model="/path/to/FoxBrain_model",
+    tensor_parallel_size=2,  # Distribute across 2 GPUs
+    dtype="bfloat16",        # Use BF16 precision
+)
+
+# Format input with chat template
+formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+# Run inference
+outputs = llm.generate(formatted_prompt, sampling_params)
+generated_text = outputs[0].outputs[0].text
+```
+
+## 2. OpenAI-compatible API Server
+
+For applications already built with the OpenAI API or when you need a standardized REST interface, VLLM provides an OpenAI-compatible server. This approach is ideal for:
+- Web applications
+- Cross-language applications
+- Integration with existing OpenAI-based tools
+- Services requiring a REST API
+
+### Server Setup
+
+Start the VLLM OpenAI-compatible server with:
 
 ```bash
-# Start the VLLM server
 python -m vllm.entrypoints.openai.api_server \
     --model /path/to/FoxBrain_model \
     --host 0.0.0.0 \
@@ -213,7 +240,9 @@ python -m vllm.entrypoints.openai.api_server \
     --chat-template /path/to/llama31_chattemplate.jinja
 ```
 
-Once the server is running, you can use the OpenAI client to interact with it:
+### Client Usage
+
+Once the server is running, use the OpenAI client to interact with it:
 
 ```python
 from openai import OpenAI
@@ -224,54 +253,50 @@ client = OpenAI(
     api_key="dummy-key"  # The API key doesn't matter for local VLLM servers
 )
 
-# Define the FoxBrain system prompt
-system_prompt = """You are a FoxBrain AI Assistant created and Developed by Foxconn (鴻海研究院). When given a human question related to multiple choices, as an expert & helpful reasoning assistant, your task is to provide a detailed answer following the instructions template below:
-
-**Instructions:**
-1. **Determine Budget**: Based on the question's complexity, decide on an appropriate step budget...
-[rest of system prompt]
-"""
-
-# Make a chat completion request
+# Send a request
 response = client.chat.completions.create(
-    model="/path/to/FoxBrain_model",  # This can be any identifier when using the local server
+    model="/path/to/FoxBrain_model",
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": "What is the capital of France?"}
     ],
     temperature=0.7,
     max_tokens=2048,
-    stop=['<|eot_id|>', '<|end_of_text|>'],
 )
 
-# Get the assistant's message
-assistant_message = response.choices[0].message.content
-print(assistant_message)
-
-# Parse the structured response
-answer, reflection, steps, clarification = parse_response(assistant_message)
+# Process the response
+answer = response.choices[0].message.content
 ```
 
-### Advanced: Function Calling with VLLM
+## 3. Advanced: Function Calling with VLLM
 
-For function calling capabilities, VLLM supports the OpenAI-compatible tool calling format. Here's how to set it up:
+VLLM supports function/tool calling capabilities similar to OpenAI's implementation. This allows your FoxBrain model to:
+- Make calls to external tools and APIs
+- Solve problems requiring external data
+- Perform calculations or data lookups
+- Process the results of these calls
+
+This approach builds on the OpenAI-compatible API server with additional configuration.
+
+### Server Setup with Function Calling
+
+Enable function calling by adding specific flags when starting the server:
 
 ```bash
-# Start the VLLM server with function calling enabled
 python -m vllm.entrypoints.openai.api_server \
     --model /path/to/FoxBrain_model \
     --host 0.0.0.0 \
     --port 8000 \
     --tensor-parallel-size 2 \
-    --enable-auto-tool-choice \
-    --tool-call-parser llama3_json \
+    --enable-auto-tool-choice \  # Enable tool choice
+    --tool-call-parser llama3_json \  # Use llama3 JSON format
     --chat-template /path/to/llama31_chattemplate.jinja
 ```
 
-Then in your client code:
+### Function Calling Client Implementation
 
 ```python
-# Define tools
+# Define available tools
 tools = [
     {
         "type": "function",
@@ -303,21 +328,18 @@ response = client.chat.completions.create(
     max_tokens=2048,
 )
 
-# Process tool calls
+# Handle tool calls
 assistant_message = response.choices[0].message
 
 if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
-    # Process each tool call
+    # Process tool calls
     for tool_call in assistant_message.tool_calls:
         function_call = tool_call.function
-        print(f"Function called: {function_call.name}")
-        print(f"Arguments: {function_call.arguments}")
         
-        # Here you would call your actual function and get a result
-        # For this example, we'll mock a response
-        result = "Weather in Taipei: 25°C, Partly Cloudy"
+        # Call your actual function and get a result
+        result = "Weather in Taipei: 25°C, Partly Cloudy"  # Example result
         
-        # Send the function result back to the model
+        # Send the result back to the model
         follow_up = client.chat.completions.create(
             model="/path/to/FoxBrain_model",
             messages=[
@@ -330,9 +352,13 @@ if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
             max_tokens=2048,
         )
         
+        # Get the final response
         final_response = follow_up.choices[0].message.content
-        print("Final response:", final_response)
 ```
+
+# Performance Optimization
+
+For optimal performance with VLLM, consider these tips based on your deployment method:
 
 ## Performance Tips
 
