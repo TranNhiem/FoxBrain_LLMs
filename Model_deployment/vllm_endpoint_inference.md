@@ -12,8 +12,11 @@ This repository provides example code for running the FoxBrain model for mathema
 - [Overview](#overview)
 - [Helper Functions](#helper-functions)
 - [Usage](#usage)
-  - [Huggingface Text Generation Implementation](#huggingface-text-generation-implementation)
-  - [Vllm Inference Implementation](#vllm-inference-implementation)
+  - [Direct Python API](#1-direct-python-api-local-implementation)
+  - [OpenAI-compatible API Server](#2-openai-compatible-api-server)
+  - [Function Calling with VLLM](#3-advanced-function-calling-with-vllm)
+- [Performance Optimization](#performance-optimization)
+- [Troubleshooting](#troubleshooting)
 - [GPU & BF16 Precision](#gpu--bf16-precision)
 
 ## Installation
@@ -25,7 +28,8 @@ Ensure you have Python 3.8 or higher installed. Then, install the required depen
 pip install vllm==0.6.6.post1
 pip install transformers==4.48.0 
 ```
-### Helper Functions
+
+## Helper Functions
 
 Below are the helper functions used for parsing the model's generated responses:
 ```python
@@ -82,8 +86,12 @@ def parse_response(response):
         steps = re.findall(r'<step>(.*?)</step>', response, re.DOTALL)
         
         return answer, reflection, steps, ""
+```
 
-# Example mathematical word problem
+## System Prompt
+
+The default system prompt used for FoxBrain (can be customized based on your needs):
+
 ```DEFAULT_SYSTEM_PROMPT = """You are a FoxBrain AI Assistant created and Developed by Foxconn (鴻海研究院). When given a human question related to multiple choices, as an expert & helpful reasoning assistant, your task is to provide a detailed answer following the instructions template below:
 
 **Instructions:**
@@ -119,9 +127,12 @@ def parse_response(response):
 </answer>
 <reflection> [Final evaluation] </reflection>
 <reward> [Quality score] </reward>"""
-## System Prompt can be optional or Leaving Empty
-DEFAULT_SYSTEM_PROMPT = ""
+
+# System Prompt can be optional or left empty
+# DEFAULT_SYSTEM_PROMPT = ""
 ```
+
+## Basic Configuration
 
 ```python 
 from vllm import LLM, SamplingParams
@@ -180,6 +191,9 @@ answer, reflection, steps, clarification = parse_response(response)
 print(f"Answer: {answer}")
 print(f"Steps: {steps}")
 print(f"Reflection: {reflection}")
+```
+
+---
 
 # VLLM Inference Implementation
 
@@ -217,6 +231,8 @@ formatted_prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_g
 outputs = llm.generate(formatted_prompt, sampling_params)
 generated_text = outputs[0].outputs[0].text
 ```
+
+---
 
 ## 2. OpenAI-compatible API Server
 
@@ -267,6 +283,8 @@ response = client.chat.completions.create(
 # Process the response
 answer = response.choices[0].message.content
 ```
+
+---
 
 ## 3. Advanced: Function Calling with VLLM
 
@@ -356,13 +374,13 @@ if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
         final_response = follow_up.choices[0].message.content
 ```
 
+---
+
 # Performance Optimization
 
 For optimal performance with VLLM, consider these tips based on your deployment method:
 
 ## Performance Tips
-
-For optimal performance with VLLM:
 
 1. **GPU Memory**: For 70B parameter models like FoxBrain, you'll need at least 80GB of GPU memory for FP8 precision or 2x40GB GPUs for BF16 precision.
 
@@ -379,6 +397,8 @@ For optimal performance with VLLM:
 4. **Batch Size**: Adjust the `--max-model-len` parameter to control context length and `--gpu-memory-utilization` (default 0.9) to control memory usage.
 
 5. **Continuous Batching**: VLLM uses continuous batching by default, which is more efficient than traditional batching. You can adjust the maximum batch size with `--max-num-batched-tokens`.
+
+---
 
 ## Troubleshooting
 
