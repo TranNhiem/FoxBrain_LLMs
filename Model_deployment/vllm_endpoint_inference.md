@@ -11,10 +11,14 @@ This repository provides example code for running the FoxBrain model for mathema
 - [Installation](#installation)
 - [Overview](#overview)
 - [Helper Functions](#helper-functions)
-- [Usage](#usage)
-  - [Direct Python API](#1-direct-python-api-local-implementation)
-  - [OpenAI-compatible API Server](#2-openai-compatible-api-server)
-  - [Function Calling with VLLM](#3-advanced-function-calling-with-vllm)
+- [System Prompt](#system-prompt)
+- [Chat Template](#chat-template)
+- [Deployment Methods](#deployment-methods)
+  - [1. Direct Python API (Local Implementation)](#1-direct-python-api-local-implementation)
+  - [2. OpenAI-compatible API Server](#2-openai-compatible-api-server)
+  - [3. Advanced: Function Calling with VLLM](#3-advanced-function-calling-with-vllm)
+- [Tested FoxBrain Deployment Example](#tested-foxbrain-deployment-example)
+- [Parsing Structured Outputs from FoxBrain](#parsing-structured-outputs-from-foxbrain)
 - [Performance Optimization](#performance-optimization)
 - [Troubleshooting](#troubleshooting)
 - [GPU & BF16 Precision](#gpu--bf16-precision)
@@ -130,6 +134,29 @@ The default system prompt used for FoxBrain (can be customized based on your nee
 
 # System Prompt can be optional or left empty
 # DEFAULT_SYSTEM_PROMPT = ""
+```
+
+## Chat Template
+
+The FoxBrain model requires proper message formatting using a Llama 3.1 compatible chat template. This template is included in the repository at `/FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja` and should be specified when starting the VLLM server:
+
+```bash
+--chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
+```
+
+The chat template is crucial for:
+- Properly formatting the conversation history for the model
+- Ensuring consistent handling of system prompts, user messages, and assistant responses
+- Supporting function/tool calls with the expected message format
+
+When using the Direct Python API approach, the template is applied automatically with the tokenizer:
+
+```python
+formatted_prompt = tokenizer.apply_chat_template(
+    messages,
+    tokenize=False,
+    add_generation_prompt=True
+)
 ```
 
 ## Basic Configuration
@@ -253,7 +280,7 @@ python -m vllm.entrypoints.openai.api_server \
     --port 8000 \
     --tensor-parallel-size 2 \
     --dtype bfloat16 \
-    --chat-template /path/to/llama31_chattemplate.jinja
+    --chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
 ```
 
 ### Client Usage
@@ -308,10 +335,139 @@ python -m vllm.entrypoints.openai.api_server \
     --tensor-parallel-size 2 \
     --enable-auto-tool-choice \  # Enable tool choice
     --tool-call-parser llama3_json \  # Use llama3 JSON format
-    --chat-template /path/to/llama31_chattemplate.jinja
+    --chat-template /FoxBrain_LLMs/Model_deployment/llama31_chattemplate.jinja
 ```
 
-### Function Calling Client Implementation
+### Tested FoxBrain Deployment Example
+
+The following command has been tested and verified to work efficiently with the FoxBrain model for function calling:
+
+```bash
+vllm serve /LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K --dtype auto --api-key token-abc123 --port 8883 --enable-auto-tool-choice --tool-call-parser llama3_json --chat-template /LLM_32T/pretrained_weights/llama31_chattemplate.jinja --max-model-len 32768 --tensor-parallel-size 2 --gpu-memory-utilization 0.97
+```
+
+This command includes:
+- Automatic dtype detection for optimal performance
+- API exposure on port 8883 with a custom API key
+- Function calling enabled with the Llama3 JSON parser
+- A large context window set to 32K tokens
+- Distribution of the model across 2 GPUs
+- Maximization of GPU memory usage at 97%
+
+The example Python script `foxbrain_function_calling_example.py` demonstrates how to connect to this VLLM server and use function calling capabilities with FoxBrain. The script includes implementations for weather lookup and calculator functions, as well as robust JSON parsing for handling function call responses.
+
+Here's a key portion of the client code from this example:
+
+```python
+from openai import OpenAI
+import json
+import re
+
+# Configure client to use your VLLM server
+client = OpenAI(
+    base_url="http://127.0.0.1:8883/v1",  # Match your VLLM port
+    api_key="token-abc123"  # Match your API key
+)
+
+# Define tool functions
+def get_weather(location: str, unit: str = "celsius"):
+    """Simulated weather function for testing"""
+    weather_data = {
+        "San Francisco": {"celsius": "18°C", "fahrenheit": "64°F", "condition": "Foggy"},
+        "New York": {"celsius": "22°C", "fahrenheit": "72°F", "condition": "Sunny"},
+        "Tokyo": {"celsius": "25°C", "fahrenheit": "77°F", "condition": "Partly Cloudy"},
+        "London": {"celsius": "16°C", "fahrenheit": "61°F", "condition": "Rainy"},
+    }
+    
+    # Default response for unknown locations
+    if location not in weather_data:
+        return f"Weather data for {location} in {unit}: 20°C/68°F, Sunny"
+    
+    data = weather_data[location]
+    temp = data[unit]
+    condition = data["condition"]
+    
+    return f"Weather data for {location}: {temp}, {condition}"
+
+# Map function names to functions
+tool_functions = {
+    "get_weather": get_weather,
+    "calculator": calculator  # Calculator function implementation omitted for brevity
+}
+
+# Define tools in OpenAI format
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get the current weather in a given location",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {"type": "string", "description": "City name, e.g., 'San Francisco'"},
+                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"], "description": "Temperature unit"}
+                },
+                "required": ["location"]
+            }
+        }
+    }
+    # Calculator tool definition omitted for brevity
+]
+
+# Example of calling the API and handling tool calls
+def test_function_calling(question):
+    # Define the FoxBrain system prompt (with structured output instructions)
+    system_prompt = """You are a FoxBrain AI Assistant created and Developed by Foxconn (鴻海研究院)...."""
+    
+    # Make completion request with tools
+    response = client.chat.completions.create(
+        model="/LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question}
+        ],
+        tools=tools,
+        tool_choice="auto",
+        temperature=0.5,
+        max_tokens=2048,
+        stop=['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>'],
+        seed=42,
+    )
+    
+    # Get the assistant's message
+    assistant_message = response.choices[0].message
+    
+    # Handle tool calls if present
+    if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
+        for tool_call in assistant_message.tool_calls:
+            function_call = tool_call.function
+            
+            # Parse arguments and call the function
+            arguments = json.loads(function_call.arguments)
+            function = tool_functions[function_call.name]
+            result = function(**arguments)
+            
+            # Send the function result back to the model
+            follow_up_response = client.chat.completions.create(
+                model="/LLM_32T/pretrained_weights/FoxBrain_Taipei_1_backup/FoxBrain_70B_CPT_8K_SFT_100k_DPO_80K",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": question},
+                    assistant_message,
+                    {"role": "tool", "tool_call_id": tool_call.id, "name": function_call.name, "content": result}
+                ],
+                temperature=0.5,
+                max_tokens=2048,
+                stop=['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>'],
+                seed=42,
+            )
+            
+            # Get the final response after incorporating tool results
+            final_response = follow_up_response.choices[0].message.content
+```
+
+## Function Calling Client Implementation
 
 ```python
 # Define available tools
@@ -376,7 +532,85 @@ if hasattr(assistant_message, 'tool_calls') and assistant_message.tool_calls:
 
 ---
 
-# Performance Optimization
+# Parsing Structured Outputs from FoxBrain
+
+The FoxBrain model has been fine-tuned to produce structured outputs with specific tags like `<step>`, `<reflection>`, and `<answer>`. When working with the model, you'll often want to extract these components for further processing. Here's a robust parsing function that can be used with the FoxBrain outputs:
+
+```python
+def parse_response(response):
+    """Parse structured elements from FoxBrain model responses."""
+    patterns = {
+        "budget": r'<count>([^<]+)</count>',
+        "steps": r'<step>([^<]+)</step>',
+        "answers": r'<answer>([^<]+)</answer>',
+        "reflections": r'<reflection>([^<]+)</reflection>',
+        "clarifications": r'<clarification>([^<]+)</clarification>',
+        "quality": r'<reward>([^<]+)</reward>'
+    }
+    
+    parsed = {}
+    for key, pattern in patterns.items():
+        matches = re.findall(pattern, response, re.DOTALL)
+        if matches:
+            parsed[key] = matches
+    
+    return parsed
+
+def display_parsed_response(parsed, title="Parsed Response"):
+    """Display parsed components in a structured format."""
+    print(f"\n=== {title} ===")
+    
+    if not parsed:
+        print("No structured elements found in the response.")
+        return
+    
+    if "budget" in parsed:
+        print(f"🔢 STEP BUDGET: {parsed['budget'][0].strip()}")
+    
+    if "steps" in parsed:
+        print("\n📋 STEPS:")
+        for i, step in enumerate(parsed["steps"], 1):
+            print(f"  {i}. {step.strip()}")
+    
+    if "answers" in parsed:
+        print("\n✅ ANSWER:")
+        print(f"  {parsed['answers'][0].strip()}")
+    
+    if "reflections" in parsed:
+        print("\n🤔 REFLECTION:")
+        print(f"  {parsed['reflections'][0].strip()}")
+    
+    if "quality" in parsed:
+        print("\n⭐ QUALITY SCORE:")
+        print(f"  {parsed['quality'][0].strip()}")
+```
+
+### Example Usage:
+
+```python
+# After receiving a response from the model
+response_content = assistant_message.content
+parsed_components = parse_response(response_content)
+display_parsed_response(parsed_components)
+
+# For function calling responses
+if has_tool_calls:
+    # Extract just the answer component for cleaner tool processing
+    answers = parsed_components.get("answers", [])
+    if answers:
+        print(f"Using extracted answer for tool processing: {answers[0]}")
+```
+
+This parsing approach is particularly useful when combining FoxBrain's structured output capabilities with function calling, as it allows you to:
+
+1. Prioritize specific components like the final `<answer>` for decision-making
+2. Track how FoxBrain manages its step budget during complex reasoning
+3. Extract reflections that explain the model's approach to problem-solving
+4. Isolate components for different downstream processing needs
+
+---
+
+## Performance Optimization
 
 For optimal performance with VLLM, consider these tips based on your deployment method:
 
@@ -394,7 +628,7 @@ For optimal performance with VLLM, consider these tips based on your deployment 
        --dtype bfloat16
    ```
 
-4. **Batch Size**: Adjust the `--max-model-len` parameter to control context length and `--gpu-memory-utilization` (default 0.9) to control memory usage.
+4. **Batch Size**: Adjust the `--max-model-len` (default -16384 can be set to max context can be 128k) parameter to control context length and `--gpu-memory-utilization` (default 0.97) to control memory usage.
 
 5. **Continuous Batching**: VLLM uses continuous batching by default, which is more efficient than traditional batching. You can adjust the maximum batch size with `--max-num-batched-tokens`.
 
