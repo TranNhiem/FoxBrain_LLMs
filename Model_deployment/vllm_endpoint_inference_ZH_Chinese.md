@@ -316,6 +316,7 @@ response = client.chat.completions.create(
     ],
     temperature=0.7,
     max_tokens=2048,
+ stop=['<|eot_id|>', '<|end_of_text|>', '<|end_header_id|>'],
 )
 
 # 處理回應
