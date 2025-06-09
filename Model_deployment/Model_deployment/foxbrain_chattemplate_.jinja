@@ -1,0 +1,154 @@
+{{- bos_token }}
+{%- if custom_tools is defined %}
+    {%- set tools = custom_tools %}
+{%- endif %}
+{%- if not tools_in_user_message is defined %}
+    {%- set tools_in_user_message = true %}
+{%- endif %}
+{%- if not date_string is defined %}
+    {%- set date_string = "26 Jul 2024" %}
+{%- endif %}
+{%- if not tools is defined %}
+    {%- set tools = none %}
+{%- endif %}
+
+{#- Define the three system prompts #}
+{%- set DEFAULT_SYSTEM_PROMPT_0 = "You are a FoxBrain helpful assistant developed by Foxconn (鴻海研究院)" %}
+{%- set DEFAULT_SYSTEM_PROMPT_1 = "detailed thinking off" %}
+{%- set DEFAULT_SYSTEM_PROMPT_2 = "You are FoxBrain AI by Foxconn (鴻海研究院). Goal: Provide step-by-step reasoning to solve questions, using clarifications for unclear inputs. Strictly use provided information; no assumptions or external real-time data.
+
+**Output Structure & Instructions:**
+
+1.  **Initial Budget:** Set based on question complexity.
+    * Output: `<count> [budget: 1 to 3 for easy, 3-6 for medium, 6-9 for very difficult] </count>`
+
+2.  **Reasoning Loop (repeat until budget is 0 or question solved):**
+    * Output: `<step> [Reasoning step details, code snippets if relevant] </step>`
+    * Decrement budget. Output: `<count> [remaining budget] </count>`
+    * Optionally, output: `<reflection> [Self-assessment, need for revision] </reflection>` then `<reward> [interim 0.0-1.0 score] </reward>`
+    * If question is solved before budget is depleted, proceed directly to Final Answer.
+
+3.  **Final Answer:** Synthesize all reasoning steps.
+    * Output: `<answer> [Comprehensive final answer] </answer>`
+
+4.  **Final Self-Evaluation:** Provide a critical overall assessment.
+    * Output: `<reflection> [Overall reasoning evaluation] </reflection>`
+    * Output: `<reward> [Final 0.0-1.0 quality score] </reward>`" %}
+
+{#- Select system prompt based on enable_thinking parameter #}
+{%- if not enable_thinking is defined %}
+    {%- set enable_thinking = "budget_thinking" %}
+{%- endif %}
+
+{%- if enable_thinking == "non-reasoning" %}
+    {%- set selected_system_prompt = DEFAULT_SYSTEM_PROMPT_0 %}
+{%- elif enable_thinking == "thinking" %}
+    {%- set selected_system_prompt = DEFAULT_SYSTEM_PROMPT_1 %}
+{%- elif enable_thinking == "budget_thinking" %}
+    {%- set selected_system_prompt = DEFAULT_SYSTEM_PROMPT_2 %}
+{%- else %}
+    {%- set selected_system_prompt = DEFAULT_SYSTEM_PROMPT_0 %}
+{%- endif %}
+
+{#- This block extracts the system message, so we can slot it into the right place. #}
+{%- if messages[0]['role'] == 'system' %}
+    {%- set user_system_message = messages[0]['content']|trim %}
+    {%- set messages = messages[1:] %}
+{%- else %}
+    {%- set user_system_message = "" %}
+{%- endif %}
+
+{#- Combine selected system prompt with user system message #}
+{%- if user_system_message %}
+    {%- set system_message = selected_system_prompt + "\n\n" + user_system_message %}
+{%- else %}
+    {%- set system_message = selected_system_prompt %}
+{%- endif %}
+
+{#- System message + builtin tools #}
+{{- "<|start_header_id|>system<|end_header_id|>\n\n" }}
+{%- if builtin_tools is defined or tools is not none %}
+    {{- "Environment: ipython\n" }}
+{%- endif %}
+{%- if builtin_tools is defined %}
+    {{- "Tools: " + builtin_tools | reject('equalto', 'code_interpreter') | join(", ") + "\n\n"}}
+{%- endif %}
+{{- "Cutting Knowledge Date: December 2023\n" }}
+{{- "Today Date: " + date_string + "\n\n" }}
+{%- if tools is not none and not tools_in_user_message %}
+    {{- "You have access to the following functions. To call a function, please respond with JSON for a function call." }}
+    {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+    {{- "Do not use variables.\n\n" }}
+    {%- for t in tools %}
+        {{- t | tojson(indent=4) }}
+        {{- "\n\n" }}
+    {%- endfor %}
+{%- endif %}
+{{- system_message }}
+{{- "<|eot_id|>" }}
+
+{#- Custom tools are passed in a user message with some extra guidance #}
+{%- if tools_in_user_message and not tools is none %}
+    {#- Extract the first user message so we can plug it in here #}
+    {%- if messages | length != 0 %}
+        {%- set first_user_message = messages[0]['content']|trim %}
+        {%- set messages = messages[1:] %}
+    {%- else %}
+        {{- raise_exception("Cannot put tools in the first user message when there's no first user message!") }}
+{%- endif %}
+    {{- '<|start_header_id|>user<|end_header_id|>\n\n' -}}
+    {{- "Given the following functions, please respond with a JSON for a function call " }}
+    {{- "with its proper arguments that best answers the given prompt.\n\n" }}
+    {{- 'Respond in the format {"name": function name, "parameters": dictionary of argument name and its value}.' }}
+    {{- "Do not use variables.\n\n" }}
+    {%- for t in tools %}
+        {{- t | tojson(indent=4) }}
+        {{- "\n\n" }}
+    {%- endfor %}
+    {{- first_user_message + "<|eot_id|>"}}
+{%- endif %}
+
+{%- for message in messages %}
+    {%- if not (message.role == 'ipython' or message.role == 'tool' or 'tool_calls' in message) %}
+        {{- '<|start_header_id|>' + message['role'] + '<|end_header_id|>\n\n'+ message['content'] | trim + '<|eot_id|>' }}
+    {%- elif 'tool_calls' in message %}
+        {%- if not message.tool_calls|length == 1 %}
+            {{- raise_exception("This model only supports single tool-calls at once!") }}
+        {%- endif %}
+        {%- set tool_call = message.tool_calls[0].function %}
+        {%- if builtin_tools is defined and tool_call.name in builtin_tools %}
+            {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+            {{- "<|python_tag|>" + tool_call.name + ".call(" }}
+            {%- for arg_name, arg_val in tool_call.arguments | items %}
+                {{- arg_name + '="' + arg_val + '"' }}
+                {%- if not loop.last %}
+                    {{- ", " }}
+                {%- endif %}
+                {%- endfor %}
+            {{- ")" }}
+        {%- else  %}
+            {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' -}}
+            {{- '{"name": "' + tool_call.name + '", ' }}
+            {{- '"parameters": ' }}
+            {{- tool_call.arguments | tojson }}
+            {{- "}" }}
+        {%- endif %}
+        {%- if builtin_tools is defined %}
+            {#- This means we're in ipython mode #}
+            {{- "<|eom_id|>" }}
+        {%- else %}
+            {{- "<|eot_id|>" }}
+        {%- endif %}
+    {%- elif message.role == "tool" or message.role == "ipython" %}
+        {{- "<|start_header_id|>ipython<|end_header_id|>\n\n" }}
+        {%- if message.content is mapping or message.content is iterable %}
+            {{- message.content | tojson }}
+        {%- else %}
+            {{- message.content }}
+        {%- endif %}
+        {{- "<|eot_id|>" }}
+    {%- endif %}
+{%- endfor %}
+{%- if add_generation_prompt %}
+    {{- '<|start_header_id|>assistant<|end_header_id|>\n\n' }}
+{%- endif %}
