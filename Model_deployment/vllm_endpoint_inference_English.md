@@ -82,11 +82,28 @@ def parse_response(response):
         clarification = clarification_match.group(1).strip() if clarification_match else response
         return "", "", [], clarification
     else:
-        answer_match = re.search(r'<answer>(.*?)</answer>', response, re.DOTALL)
-        reflection_match = re.search(r'<reflection>(.*?)</reflection>', response, re.DOTALL)
+        # Try multiple answer tag patterns
+        answer_patterns = [
+            r'<answer>(.*?)</answer>',
+            r'<final_answer>(.*?)</final_answer>',
+            r'<.*?answer.*?>(.*?)</.*?answer.*?>',  # Matches any tag containing "answer"
+        ]
         
-        answer = answer_match.group(1).strip() if answer_match else ""
+        answer = ""
+        for pattern in answer_patterns:
+            answer_match = re.search(pattern, response, re.DOTALL | re.IGNORECASE)
+            if answer_match:
+                answer = answer_match.group(1).strip()
+                break
+        
+        # If no answer tags found, use the full response as answer
+        if not answer:
+            answer = response.strip()
+        
+        # Keep existing reflection and steps parsing
+        reflection_match = re.search(r'<reflection>(.*?)</reflection>', response, re.DOTALL)
         reflection = reflection_match.group(1).strip() if reflection_match else ""
+        
         steps = re.findall(r'<step>(.*?)</step>', response, re.DOTALL)
         
         return answer, reflection, steps, ""
