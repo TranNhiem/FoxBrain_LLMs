@@ -44,8 +44,8 @@ We will soon provide a number of model checkpoints that we trained. Please find 
 
 # Demo: 
 
-+ [**FoxBrain Battel Chat  Demo**](http://13.65.249.11:8886/)
-+ [**FoxBrain SolutionCraft Demo**](http://13.65.249.11:8884/)
++ [**FoxBrain Battel Chat  Demo**](http://4.151.237.144:8886/)
++ [**FoxBrain SolutionCraft Demo**](http://4.151.237.144:8884/)
 
 
 
