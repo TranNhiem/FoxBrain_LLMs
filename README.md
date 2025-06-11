@@ -60,7 +60,7 @@ We will soon provide a number of model checkpoints that we trained. Please find 
 
 Stay tuned and follow our progress or contribute directly on GitHub!
 
-Reach out to the FoxBrain team member Rick at rick.tvn@foxconn.com.
+Reach out to the FoxBrain Team at rick.tvn@foxconn.com.
 
 ```bibtex
 @misc{FoxBrain,
