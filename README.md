@@ -30,7 +30,7 @@ We will soon provide a number of model checkpoints that we trained. Please find 
 
 | **Model**         |                   **Link**                                                            | 
 |--------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| **FoxBrain v1.0  (LLama3.1 based)**  | 🤗 <a href="" target="_blank">[Released Soon](https://huggingface.co/FoxconnAI/Llama_3.1-FoxBrain-70B)</a>  | 
+| **FoxBrain v1.0  (LLama3.1 based)**  | 🤗 <a href="" target="_blank">[Model Link](https://huggingface.co/FoxconnAI/Llama_3.1-FoxBrain-70B)</a>  | 
 <!--
 | **FoxBrain v1.0 7B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_llama2_7B_8K_SFT_General_domain</a>  | 
 | **FoxBrain v1.0 13 B SFT (LLama2 based)**  | 🤗 <a href="" target="_blank">Zh_LLama2_13B_4K_SFT_General_Domain_Knowledge</a>  | 
